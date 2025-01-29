@@ -25,7 +25,7 @@
 
 
 
-# Updates1
+# Updates
 
 * **Jun. 29, 2025** - The preview version of SUPER's planning module, supporting both ROS1 and ROS2, is now available! Try it out, and we welcome any issues or contributions.
 * **Jun. 29, 2025** - The paper of SUPER is now featured on the official website of [*Science Robotics*](https://www.science.org/doi/10.1126/scirobotics.ado6187).
@@ -66,7 +66,7 @@ Our paper is also aviliable at [here](misc/scirobotics.ado6187.pdf). If our repo
 
 # 1 Highlights
 
-### 1.1 Autonomous Navigation in Challenging Environments
+## 1.1 Autonomous Navigation in Challenging Environments
 [![Video Demo](./misc/fig1.gif)](https://www.youtube.com/watch?v=eDkwGXCea7w)
 
 ## 1.2 Applications: Object Tracking & Autonomous Exploration
@@ -79,15 +79,15 @@ SUPER has been successfully deployed in various applications, including large-sc
 
 
 
-### 1.3 Supported Projects
+## 1.3 Supported Projects
 
-#### 1.3.1 Autonomous Tail-Sitter (TRO '25)
+### 1.3.1 Autonomous Tail-Sitter (TRO '25)
 
 Building on SUPER, a similar planning system has been successfully validated in [Autonomous Navigation for Tail-Sitter UAVs](https://github.com/hku-mars/EFOPT)  by [@genegzl](https://github.com/genegzl)  et al.
 
 ![tailsitter](./misc/tailsitter.gif)
 
-#### 1.3.2 FAST-LIVO2 (TRO '24)
+### 1.3.2 FAST-LIVO2 (TRO '24)
 SUPER serves as the flight platform and navigation system in the video demonstration of [FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry](https://github.com/hku-mars/FAST-LIVO2) by [@xuankuzcr](https://github.com/xuankuzcr) et al.
 
 <img src="./misc/image-20250130031404057.png" alt="image-20250130031404057" style="zoom:50%;" />

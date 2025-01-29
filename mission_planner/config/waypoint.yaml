@@ -4,7 +4,7 @@ odom_topic: "/lidar_slam/odom"
 # 0 for RVIZ and; 1 for Mavros; 2 for constant time
 start_trigger_type: 2
 # trigger after start_trigger_delay (s)
-start_program_delay: 10.0
+start_program_delay: 3.0
 # 0 for PATH and 1 for waypoints
 cmd_type: 1
 # the distance threshold for waypoint goal swithcing
