@@ -71,9 +71,10 @@ Our paper is also aviliable at [here](misc/scirobotics.ado6187.pdf). If our repo
 
 ## 1.2 Applications: Object Tracking & Autonomous Exploration
 
-SUPER has been successfully deployed in various applications, including large-scale autonomous exploration in an ongoing project by  [@jackykongfz](https://github.com/jackykongfz) et al. and object tracking in both day and night conditions.
+SUPER has been successfully deployed in various applications, including large-scale autonomous exploration in an ongoing project by [@jackykongfz](https://github.com/jackykongfz) and [@ZbyLGsc](https://github.com/ZbyLGsc) from [STAR Lab](sysu-star.com), among others, as well as object tracking under both day and night conditions.
 
 ![exp](./misc/exp.gif)
+> ⬆️ This segment is from an unpublished work by Kong [[@jackykongfz](https://github.com/jackykongfz) ] et al., conducted in collaboration with [STAR Lab](sysu-star.com), using SUPER.
 
 ![tracking](./misc/tracking.gif)
 
@@ -258,8 +259,12 @@ SUPER is built upon several outstanding open-source projects. We extend our grat
 * **[FAST_LIO](https://github.com/hku-mars/FAST_LIO)**, **[Swarm-LIO2](https://github.com/hku-mars/Swarm-LIO2)** and  **[LiDAR_IMU_Init](https://github.com/hku-mars/LiDAR_IMU_Init)**  for their excellent localization solutions.
 * **[ROG-Map](https://github.com/hku-mars/ROG-Map)** - A high-performance mapping framework that influenced our approach to map representation and optimization.
 * **[MARSIM](https://github.com/hku-mars/MARSIM)** - A simulation environment that played a key role in testing and evaluating our algorithms in virtual scenarios.
-* **[GCOPTER](https://github.com/ZJU-FAST-Lab/GCOPTER)** - A valuable resource that contributed to our understanding of motion planning and control techniques.
+* **[GCOPTER](https://github.com/ZJU-FAST-Lab/GCOPTER)** – A valuable resource that efficiently performs differentiable trajectory optimization and serves as the foundation of our trajectory optimization method.
+
+  **[FIRI](https://github.com/ZJU-FAST-Lab/GCOPTER/blob/main/gcopter/include/gcopter/firi.hpp)** – An extremely efficient safe flight corridor generation method upon which our CIRI is built.
+* [**FASTER**](https://github.com/mit-acl/faster) - Introduces the initial concept of a two-trajectory optimization framework.
 * **[DecompUtil](https://github.com/sikang/DecompUtil)** - A convex decomposition tool that was instrumental in implementing our algorithms.
 * **[Mockamap](https://github.com/HKUST-Aerial-Robotics/mockamap)** - A simple ROS-based map generator that assisted in our development and testing.
+* [**Nxt-FC**](https://github.com/HKUST-Aerial-Robotics/Nxt-FC) – A compact yet powerful hardware platform for the PX4 flight controller.
 
 We sincerely appreciate the efforts of these communities in advancing robotics research.
