@@ -34,15 +34,14 @@
 Our paper is also aviliable at [here](misc/scirobotics.ado6187.pdf). If our repository supports your academic projects, please cite our work. Thank you!
 
 ```tex
-@article{ren2025super,
+@article{ren2025safety,
   title={Safety-assured high-speed navigation for MAVs},
-  author={Ren, Yunfan and Zhu, Fangcheng and Lu, Guozheng and Cai, Yixi and Yin, Longji and Kong, Fanze and Lin, Jiarong and Chen, Nan and Zhang, Fu}
+  author={Ren, Yunfan and Zhu, Fangcheng and Lu, Guozheng and Cai, Yixi and Yin, Longji and Kong, Fanze and Lin, Jiarong and Chen, Nan and Zhang, Fu},
   journal={Science Robotics},
   volume={10},
   number={98},
   pages={eado6187},
   year={2025},
-  doi = {10.1126/scirobotics.ado6187},
   publisher={American Association for the Advancement of Science}
 }
 
