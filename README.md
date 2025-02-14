@@ -106,6 +106,8 @@ sudo apt-get install libeigen3-dev
 sudo ln -s /usr/include/eigen3/Eigen /usr/include/Eigen
 # dw for backward cpp
 sudo apt-get install libdw-dev
+# for ROS dependency
+sudo apt-get install ros-${YOUR-ROS-VERSION}-mavros* ros-${YOUR-ROS-VERSION}-pcl*
 ```
 
 Before building the code, select the appropriate ROS version:
