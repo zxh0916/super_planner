@@ -200,7 +200,7 @@ ros2 launch mission_planner click_demo.launch.py
 
 ### Real-world deployment
 
-A detailed guide for deploying SUPER on real-world hardware will be available soon. In the meantime, you can refer to [issue #5](#5) for some helpful hints.
+A detailed guide for deploying SUPER on real-world hardware will be available soon. In the meantime, you can refer to [issue #5](https://github.com/hku-mars/SUPER/issues/5) for some helpful hints.
 
 ## 2.4 Use Your Own Map
 
