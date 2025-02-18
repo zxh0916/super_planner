@@ -198,6 +198,10 @@ ros2 launch mission_planner benchmark_dense.launch.py
 ros2 launch mission_planner click_demo.launch.py
 ```
 
+### Real-world deployment
+
+A detailed guide for deploying SUPER on real-world hardware will be available soon. In the meantime, you can refer to [issue #5](#5) for some helpful hints.
+
 ## 2.4 Use Your Own Map
 
 SUPER allows users to load their own **.pcd** maps as simulation environments. To do so:
