@@ -122,7 +122,7 @@ rog_map:
   load_pcd_en: false
 
   map_sliding:
-    enable: false
+    enable: true
     # The minimum distance [m] to slide the map.
     threshold: 0.3
 
@@ -142,7 +142,7 @@ rog_map:
 
 
   visualization:
-    enable: false
+    enable: true
     # when enabled, use rqt_reconfigure to change the visualization parameters.
     use_dynamic_reconfigure: false
     # The rate of visualization [Hz], if set to 0, the visualization will not be triggered by frame.
