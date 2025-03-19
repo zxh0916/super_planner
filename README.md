@@ -67,6 +67,7 @@ Our paper is also aviliable at [here](misc/scirobotics.ado6187.pdf). If our repo
 # 1 Highlights
 
 ## 1.1 Autonomous Navigation in Challenging Environments
+(Click for video demo)
 [![Video Demo](./misc/fig1.gif)](https://www.youtube.com/watch?v=eDkwGXCea7w)
 
 ## 1.2 Applications: Object Tracking & Autonomous Exploration
