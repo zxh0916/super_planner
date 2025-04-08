@@ -102,14 +102,14 @@ Install dependencies
 
 ```bash
 # for MARSIM example
-sudo apt-get install libglfw3-dev libglew-dev
+sudo apt-get install libglfw3-dev libglew-dev install libncurses5-dev libncursesw5-dev
 # Eigen [version testd: 3.3.7-2] and soft link 
 sudo apt-get install libeigen3-dev       
 sudo ln -s /usr/include/eigen3/Eigen /usr/include/Eigen
 # dw for backward cpp
 sudo apt-get install libdw-dev
 # for ROS dependency
-sudo apt-get install ros-${YOUR-ROS-VERSION}-mavros* ros-${YOUR-ROS-VERSION}-pcl*
+sudo apt-get install ros-${YOUR-ROS-VERSION}-mavros* ros-${YOUR-ROS-VERSION}-pcl* ros-${YOUR-ROS-VERSION}-rosfmt
 ```
 
 Before building the code, select the appropriate ROS version:
