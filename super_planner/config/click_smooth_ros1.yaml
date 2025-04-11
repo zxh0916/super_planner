@@ -64,10 +64,10 @@ traj_opt:
     penna_jerk: -5.0e+5
     penna_attract: 1.0e+3
     penna_omg:  5.0e+5
-    penna_max_acc_thr:  5.0e+5
-    penna_min_acc_thr:  5.0e+5
+    penna_thr: 1.0e+5
 
   backup_traj:
+    uniform_time_en: true
     pos_constraint_type: 1
     piece_num: 2
     energy_cost_type: 4
@@ -83,8 +83,7 @@ traj_opt:
     penna_acc: 1.0e+5
     penna_jerk: -1.0e+5
     penna_omg: 1.0e+5
-    penna_max_acc_thr: 1.0e+5
-    penna_min_acc_thr: 1.0e+5
+    penna_thr: 1.0e+5
 
   flatness:
     mass: 1.64

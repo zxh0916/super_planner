@@ -7,18 +7,18 @@
 * If you use this code, please cite the respective publications as
 * listed on the above website.
 *
-* ROG-Map is free software: you can redistribute it and/or modify
+* SUPER is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Lesser General Public License as published by
 * the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ROG-Map is distributed in the hope that it will be useful,
+* SUPER is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU Lesser General Public License
-* along with ROG-Map. If not, see <http://www.gnu.org/licenses/>.
+* along with SUPER. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <traj_opt/backup_traj_optimizer_s4.h>
@@ -267,7 +267,13 @@ double BackupTrajOpt::costFunctional(void *ptr, const Eigen::VectorXd &x, Eigen:
     Eigen::Map<Eigen::VectorXd> gradTau(g.data(), dimTau);
     Eigen::Map<Eigen::VectorXd> gradXi(g.data() + dimTau, dimXi);
     double gradTaus = g(g.size() - 1);
-    gcopter::forwardMapTauToT(tau, obj.times);
+
+    if (obj.uniform_time_en) {
+        gcopter::forwardMapTauToT(tau, obj.total_time);
+        obj.times.setConstant(obj.total_time(0) / obj.times.size());
+    } else {
+        gcopter::forwardMapTauToT(tau, obj.times);
+    }
 
     switch (obj.pos_constraint_type) {
         case 1: {
@@ -322,7 +328,13 @@ double BackupTrajOpt::costFunctional(void *ptr, const Eigen::VectorXd &x, Eigen:
     obj.gradByPoints.leftCols(obj.piece_num - 1) = partGradOfWaypts;
     obj.gradByPoints.rightCols(1) = partGradOfTailPVAJ.col(0);
 
-    gcopter::propagateGradientTToTau(tau, obj.gradByTimes, gradTau);
+    if (obj.uniform_time_en) {
+        obj.gradByTotalT(0) = obj.gradByTimes.sum() / obj.times.size();
+        gcopter::propagateGradientTToTau(tau, obj.gradByTotalT, gradTau);
+    } else {
+        gcopter::propagateGradientTToTau(tau, obj.gradByTimes, gradTau);
+    }
+
     switch (obj.pos_constraint_type) {
         case 1: {
             MatDf gp = obj.gradByPoints;
@@ -404,7 +416,11 @@ bool BackupTrajOpt::setupProblemAndCheck() {
     }
 
     // 2. Reset the problem dimension
-    opt_vars.temporalDim = opt_vars.piece_num;
+    if (opt_vars.uniform_time_en) {
+        opt_vars.temporalDim = 1;
+    } else {
+        opt_vars.temporalDim = opt_vars.piece_num;
+    }
     switch (opt_vars.pos_constraint_type) {
         case 1: {
             opt_vars.spatialDim = 3 * opt_vars.piece_num;
@@ -446,9 +462,12 @@ double BackupTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
         opt_vars.ts = opt_vars.given_init_ts;
     }
 
-    gcopter::backwardMapTToTau(opt_vars.times, tau);
-    Eigen::VectorXd tt;
-    gcopter::forwardMapTauToT(tau, tt);
+    if (opt_vars.uniform_time_en) {
+        gcopter::backwardMapTToTau(opt_vars.total_time, tau);
+    } else {
+        gcopter::backwardMapTToTau(opt_vars.times, tau);
+    }
+
     switch (opt_vars.pos_constraint_type) {
         case 1: {
             MatDf p_e = opt_vars.points;
@@ -531,8 +550,12 @@ double BackupTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
     }
 
     if (ret >= 0) {
-        VecDf Ts;
-        gcopter::forwardMapTauToT(tau, opt_vars.times);
+        if (opt_vars.uniform_time_en) {
+            gcopter::forwardMapTauToT(tau, opt_vars.total_time);
+            opt_vars.times.setConstant(opt_vars.total_time(0) / opt_vars.times.size());
+        } else {
+            gcopter::forwardMapTauToT(tau, opt_vars.times);
+        }
         switch (opt_vars.pos_constraint_type) {
             case 1: {
                 VecDf xi_e = xi;
@@ -585,6 +608,10 @@ BackupTrajOpt::BackupTrajOpt(const traj_opt::Config &cfg, const ros_interface::R
     opt_vars.integral_res = cfg_.integral_reso;
     opt_vars.quadrotor_flatness = cfg_.quadrotot_flatness;
     opt_vars.weight_ts = cfg_.penna_ts;
+    opt_vars.uniform_time_en = cfg_.uniform_time_en;
+    opt_vars.piece_num = cfg_.piece_num;
+    opt_vars.total_time.resize(1);
+    opt_vars.gradByTotalT.resize(1);
 }
 
 bool BackupTrajOpt::checkTrajMagnitudeBound(Trajectory &out_traj) {
@@ -636,6 +663,11 @@ BackupTrajOpt::optimize(const Trajectory &exp_traj,
     opt_vars.times.resize(opt_vars.piece_num);
     opt_vars.times.setConstant(heu_dur / opt_vars.piece_num);
     opt_vars.ts = heu_ts;
+
+    if (opt_vars.uniform_time_en) {
+        opt_vars.total_time(0) = heu_dur;
+    }
+
 
     out_traj.clear();
     PolyhedronH planes = sfc.GetPlanes();

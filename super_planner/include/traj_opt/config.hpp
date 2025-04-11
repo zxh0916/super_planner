@@ -7,18 +7,18 @@
 * If you use this code, please cite the respective publications as
 * listed on the above website.
 *
-* ROG-Map is free software: you can redistribute it and/or modify
+* SUPER is free software: you can redistribute it and/or modify
 * it under the terms of the GNU Lesser General Public License as published by
 * the Free Software Foundation, either version 3 of the License, or
 * (at your option) any later version.
 *
-* ROG-Map is distributed in the hope that it will be useful,
+* SUPER is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU Lesser General Public License
-* along with ROG-Map. If not, see <http://www.gnu.org/licenses/>.
+* along with SUPER. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
@@ -39,6 +39,8 @@ namespace traj_opt {
 
     class Config {
     public:
+        bool uniform_time_en{false};
+
         flatness::FlatnessMap quadrotot_flatness;
 
         bool print_optimizer_log{false};
@@ -92,6 +94,7 @@ namespace traj_opt {
             loader.LoadParam("traj_opt/switch/save_log_en", save_log_en, false);
             loader.LoadParam("traj_opt" + ns + "pos_constraint_type", pos_constraint_type, 2);
             loader.LoadParam("traj_opt" + ns + "piece_num", piece_num, 1);
+            loader.LoadParam("traj_opt" + ns + "uniform_time_en", uniform_time_en, false);
             loader.LoadParam("traj_opt" + ns + "block_energy_cost", block_energy_cost, false);
             loader.LoadParam("traj_opt" + ns + "opt_accuracy", opt_accuracy, 1.0e-5);
             loader.LoadParam("traj_opt" + ns + "integral_reso", integral_reso, 10);
