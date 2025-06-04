@@ -101,7 +101,7 @@ Install dependencies
 
 ```bash
 # for MARSIM example
-sudo apt-get install libglfw3-dev libglew-dev install libncurses5-dev libncursesw5-dev
+sudo apt-get install libglfw3-dev libglew-dev libncurses5-dev libncursesw5-dev
 # Eigen [version testd: 3.3.7-2] and soft link 
 sudo apt-get install libeigen3-dev       
 sudo ln -s /usr/include/eigen3/Eigen /usr/include/Eigen
