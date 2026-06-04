@@ -214,12 +214,22 @@ PYBIND11_MODULE(super_planner_py, m) {
              return mapStatsToDict(self.load_static_pcd(pcd_path, clear));
            },
            py::arg("pcd_path"), py::arg("clear") = true)
+      .def("load_static_points",
+           [](PlannerSession& self, const py::array& points, bool clear) {
+             return mapStatsToDict(self.load_static_points(pointsFromArray(points), clear));
+           },
+           py::arg("points"), py::arg("clear") = true)
       .def("update_sensing",
            [](PlannerSession& self, const py::array& points, const py::object& state, double time_s) {
              return mapUpdateToDict(self.update_sensing(pointsFromArray(points),
                                                         robotStateFromObject(state), time_s));
            },
            py::arg("points"), py::arg("state"), py::arg("time_s"))
+      .def("update_sensing",
+           [](PlannerSession& self, const py::object& state, double time_s) {
+             return mapUpdateToDict(self.update_sensing({}, robotStateFromObject(state), time_s));
+           },
+           py::arg("state"), py::arg("time_s"))
       .def("set_goal",
            [](PlannerSession& self, const py::object& position, py::object yaw) {
              const double goal_yaw = yaw.is_none() ? NAN : py::cast<double>(yaw);

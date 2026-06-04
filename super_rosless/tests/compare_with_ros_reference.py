@@ -50,7 +50,8 @@ def run_rosless(config, module_dir):
         "quat": [1.0, 0.0, 0.0, 0.0],
         "yaw": 0.0,
     }
-    planner.update_sensing(np.array([[7.0, 50.0, 1.5, 1.0]], dtype=np.float64), state, 0.0)
+    planner.load_static_points(np.array([[7.0, 50.0, 1.5, 1.0]], dtype=np.float64))
+    planner.update_sensing(state, 0.0)
     planner.set_goal([5.0, 0.0, 1.5])
     planner.step(0.0)
     step = planner.step(0.1)

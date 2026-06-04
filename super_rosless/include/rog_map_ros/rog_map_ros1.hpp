@@ -47,17 +47,38 @@ class ROGMapROS : public ROGMap {
     robot_state_.rcv = true;
   }
 
+  void clearStaticMap() {
+    resetLocalMap();
+    if (inf_map_) {
+      inf_map_->resetLocalMap();
+    }
+    if (fcnt_map_) {
+      fcnt_map_->resetLocalMap();
+    }
+    if (esdf_map_) {
+      esdf_map_->resetLocalMap();
+    }
+    map_empty_ = true;
+  }
+
+  void loadStaticPoints(const PointCloud& cloud) {
+    if (cloud.empty()) {
+      return;
+    }
+    updateOccPointCloud(cloud);
+    if (cfg_.esdf_en) {
+      esdf_map_->updateESDF3D(robot_state_.p);
+    }
+    map_empty_ = false;
+  }
+
   bool loadStaticPcd(const std::string& pcd_path, std::size_t& point_count) {
     PointCloud::Ptr pcd_map(new PointCloud);
     if (pcl::io::loadPCDFile(pcd_path, *pcd_map) == -1) {
       point_count = 0;
       return false;
     }
-    updateOccPointCloud(*pcd_map);
-    if (cfg_.esdf_en) {
-      esdf_map_->updateESDF3D(robot_state_.p);
-    }
-    map_empty_ = false;
+    loadStaticPoints(*pcd_map);
     point_count = pcd_map->size();
     return true;
   }
