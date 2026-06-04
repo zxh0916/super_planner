@@ -89,6 +89,7 @@ class PlannerSession {
   explicit PlannerSession(const std::string& config_path);
 
   MapStats load_static_pcd(const std::string& pcd_path, bool clear = true);
+  MapStats load_static_points(const std::vector<std::array<double, 4>>& points, bool clear = true);
   MapUpdateResult update_sensing(const std::vector<std::array<double, 4>>& points,
                                  const RobotStateInput& state,
                                  double time_s);

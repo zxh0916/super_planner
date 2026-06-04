@@ -9,3 +9,5 @@
 **.bin
 **.zip
 **.ply
+*.egg-info/
+*.so

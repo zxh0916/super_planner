@@ -1,90 +1,158 @@
+# SUPER dense-static scene planning config.
+#
+# 重要：当前 3DGS 采集路径不会完全直接使用本文件的原值。
+# `source/diffaero/env/obstacle_avoidance_3dgs.py` 会先读取本文件作为模板，
+# 再为每个 3DGS 场景写出临时 SUPER 配置，并覆盖下面这些字段：
+# - fsm.replan_rate / timer_en / click_height
+# - super_planner.replan_forward_dt / visualization_en / print_log / robot_r / yaw_dot_max
+# - traj_opt.boundary.max_vel / max_acc / max_jerk / max_omg
+# - rog_map.map_size / fix_map_origin / virtual_ground_height / virtual_ceil_height
+# - rog_map.ros_callback.enable / visualization.enable
+# - rog_map.raycasting.local_update_box / ray_range
+#
+# 因此，如果目标是让 3DGS 采集实际降速，优先调整：
+# `source/diffaero/cfg/env/oa_3dgs.yaml` 里的
+# `gaussian_splatting.super_planner.*`，而不是只改本文件同名字段。
+# 一个保守的第一版降速 profile 可从这些范围试起：
+# max_vel: 1.2~1.8, max_acc: 2.0~3.0, max_jerk: 8~15,
+# max_omg: 0.6~0.8, yaw_dot_max: 0.5~0.8, replan_dt: 0.08~0.12.
+
 fsm:
+  # ROS/FSM 层参数。ROS-less 3DGS worker 主要直接驱动 PlannerSession，
+  # 不依赖点击目标和 ROS 定时器；3DGS 还会把 timer_en 改成 false。
   click_goal_en: true
   click_goal_topic: "/planning/click_goal"
-  click_height: 1.5
+  # RViz 点击目标未给高度时使用的高度；3DGS 会覆盖为 -10，基本不作为调参旋钮。
+  click_height: -10
   click_yaw_en: true
+  # ROS FSM 重规划频率 [Hz]。3DGS 会由 oa_3dgs.yaml 的 replan_dt 反算覆盖。
   replan_rate: 15.0
   cmd_topic: "/planning/pos_cmd"
   mpc_cmd_topic: "/planning_cmd/poly_traj"
+  # true 表示 ROS FSM 用 timer 周期触发；3DGS ROS-less 模式会覆盖为 false。
   timer_en: true
 
 super_planner:
+  # 是否启用刹停/备份轨迹。关闭会减少计算，但失去失败恢复轨迹。
   backup_traj_en: true
   detailed_log_en: false
+  # 可视化/日志在 3DGS 里会被关闭，避免采集时额外开销。
   visualization_en: true
+  # true 时前端按视场裁剪未知区域；当前 dense static 配置关闭。
   use_fov_cut: false
   print_log: false
   visual_process: false
+  # true 时前端只在已知 free 空间内搜索；false 更宽松。
   frontend_in_known_free: false
+  # goal_yaw_en / goal_vel_en 决定 goal 是否带期望 yaw / 速度边界。
   goal_yaw_en: false
   goal_vel_en: false
-  corridor_bound_dis: 0.8
+  # 安全走廊边界余量 [m]。过小更贴障碍，过大更保守且可能无解。
+  corridor_bound_dis: 0.3
+  # 走廊生成时单段线长度上限 [m]；越小走廊分段越细，计算更重。
   corridor_line_max_length: 1.0
+  # 安全走廊 seed line 的最大长度 [m]，限制局部走廊跨度。
   safe_corridor_line_max_length: 6.0
+  # IRIS/CIRI 走廊膨胀迭代次数；更大可能更宽但更耗时。
   iris_iter_num: 2
+  # 障碍点抽样间隔；更大更快但走廊约束更粗。
   obs_skip_num: 2
+  # 重规划耗时补偿/前瞻时间 [s]。3DGS 会覆盖为 replan_dt。
   replan_forward_dt: 0.1
+  # 前端规划视距 [m]。适当增大可减少短视路径，但搜索和优化更重。
   planning_horizon: 7.0
+  # 感知视距 [m]；负数表示不额外按距离截断。
   sensing_horizon: -1
+  # receding horizon 提交距离 [m]。适当增大可减少过度短视重规划，使轨迹更连贯。
   receding_dis: 1.0
+  # 机器人半径 [m]，影响走廊膨胀和安全检查。3DGS 会用 env.r_drone 覆盖。
   robot_r: 0.2
+  # yaw 最大角速度 [rad/s]。3DGS 会由 oa_3dgs.yaml 覆盖；降小可减少快速转头。
   yaw_dot_max: 3.0
   # Yaw mode: 1 heading to velocity, 2 heading to goal
   yaw_mode: 1
+  # 输出给 MPC 的轨迹采样长度/段数设置。
   mpc_horizon: 15
 
 traj_opt:
   switch:
+    # 优化日志只用于调试；采集时通常关闭。
     save_log_en: false
     print_optimizer_log: false
 
   boundary:
+    # 动力学边界。3DGS 会用 oa_3dgs.yaml 的 gaussian_splatting.super_planner
+    # 覆盖 max_vel/max_acc/max_jerk/max_omg，所以 3DGS 降速优先改那里。
+    # max_vel 越低，时间分配和速度约束越保守。
     max_vel: 8.0
+    # max_acc 越低，加减速越缓，突然冲刺会减少，但可能更容易超时或无解。
     max_acc: 15.0
+    # max_jerk 越低，轨迹变化率越小，猛拐/猛加速会减少。
     max_jerk: 120.0
+    # 机体姿态角速度上限 [rad/s]；越低姿态变化越保守。
     max_omg: 2.5
+    # 推力对应的加速度上下界 [m/s^2]，配合 flatness 和 penna_thr 使用。
     max_acc_thr: 17.0
     min_acc_thr: 6.0
+    # 约束违反容忍比例，用于部分优化结果检查。
     penna_margin: 0.05
 
   exp_traj:
     # 1 for xi 2 for pos
+    # 主轨迹优化。pos_constraint_type=1 使用 xi/走廊内部变量约束，2 使用位置约束。
     pos_constraint_type: 1
+    # 注意：energy_cost_type 当前没有被 traj_opt::Config 读取，不是有效调参旋钮。
     energy_cost_type: 4
+    # true 时屏蔽能量项，更偏向最短时间/约束项。
     block_energy_cost: false
     opt_accuracy: 5.0e-6
+    # 注意：scale_factor 当前没有被 traj_opt::Config 读取，不是有效调参旋钮。
     scale_factor: 1.0
+    # 积分离散分辨率；越大约束检查更密，优化更重。
     integral_reso: 15
     smooth_eps: 0.01
+    # 时间惩罚。越大越追求短时间，轨迹更激进；想慢一点可降低。
     penna_t: 1.0e+7
+    # 位置/速度/加速度/jerk 等 soft penalty。负数通常表示禁用对应 penalty。
     penna_pos: 5.0e+9
     penna_vel: 5.0e+8
     penna_acc: 5.0e+8
+    # 当前为负，表示不惩罚 jerk。设为正数可让轨迹更顺，但可能增加耗时或无解率。
     penna_jerk: -5.0e+8
+    # 吸引项，帮助轨迹贴近 guide path / 目标方向。
     penna_attract: 5.0e+8
+    # penna_omg 和 penna_thr 为正时会启用 flatness 相关角速度/推力惩罚。
     penna_omg: -1
     penna_thr: -1
 
   backup_traj:
+    # 备份/刹停轨迹优化，用于主轨迹失败或需要安全回退时。
     uniform_time_en: true
     pos_constraint_type: 2
+    # 备份轨迹多项式段数。
     piece_num: 2
+    # 注意：energy_cost_type 当前没有被 traj_opt::Config 读取，不是有效调参旋钮。
     energy_cost_type: 4
+    # true 时屏蔽能量项，更强调可行刹停/时间项。
     block_energy_cost: true
     opt_accuracy: 1.0e-5
+    # 注意：scale_factor 当前没有被 traj_opt::Config 读取，不是有效调参旋钮。
     scale_factor: 1.0
     integral_reso: 12
     smooth_eps: 0.01
     penna_t: 100.0
+    # 备份轨迹总时长相关 penalty。
     penna_ts: 1.0e+7
     penna_pos: 1.0e+10
     penna_vel: 1.0e+8
     penna_acc: 1.0e+8
+    # 当前为负，表示不惩罚 jerk。
     penna_jerk: -1.0e+6
     penna_omg: -1
     penna_thr: -1
 
   flatness:
+    # 四旋翼 flatness 模型参数；影响推力和角速度估计。
     mass: 1.64
     dh: 0.35
     dv: 0.35
@@ -94,6 +162,7 @@ traj_opt:
 
 
 astar:
+  # A* 前端栅格规模，单位是体素数量，不是米。过小会截断搜索空间。
   map_voxel_num: [ 500, 500, 100 ]
   visual_process: false
   allow_diag: true
@@ -103,28 +172,38 @@ astar:
 
 
 rog_map:
-  resolution: 0.05
-  inflation_resolution: 0.1
+  # ROG-Map 占据栅格参数。3DGS 会加载静态点云并直接调用 updateMap，
+  # 同时覆盖地图尺寸、原点、高低虚拟边界、ROS callback 和 raycasting 范围。
+  resolution: 0.2
+  inflation_resolution: 0.2
+  # 障碍膨胀步数，配合 inflation_resolution 决定安全膨胀厚度。
   inflation_step: 3
+  # 是否膨胀 unknown 区域；dense static 关闭，避免过度保守。
   unk_inflation_en: false
   unk_inflation_step: 1
+  # 地图物理尺寸 [m]。3DGS 会按当前场景导航边界覆盖。
   map_size: [ 15,110,6 ]
   # If the map rolling is disable, the map origin [m] should be set.
+  # 固定地图中心/原点 [m]。3DGS 会按当前场景中心覆盖。
   fix_map_origin: [ 0,0,1.5 ]
   frontier_extraction_en: false
 
   # Virtual ceil and ground
+  # 虚拟天花板/地面高度 [m]，用于边界占据。3DGS 会按导航 z 边界覆盖。
   virtual_ceil_height: 3.5
   virtual_ground_height: -0.1
 
+  # 从 PCD 文件加载地图；3DGS 通过 Python worker 传入点云，不依赖这里的 PCD。
   load_pcd_en: false
 
   map_sliding:
+    # false 表示固定地图。3DGS 也按固定场景地图使用。
     enable: false
     # The minimum distance [m] to slide the map.
     threshold: 3.0
 
   esdf:
+    # SUPER 当前路径主要使用占据/膨胀信息；ESDF 默认关闭。
     enable: false
     resolution: 0.1
     # The range of esdf around the odom [m].
@@ -133,6 +212,7 @@ rog_map:
   # If [enable = true], the ROG-Map will actively take ros topic as input.
   #  else user should call function [updateMap] to update the map.
   ros_callback:
+    # ROS 模式下订阅点云和 odom；3DGS 会覆盖为 false，由 worker 手动更新地图。
     enable: true
     cloud_topic: "/cloud_registered"
     odom_topic: "/lidar_slam/odom"
@@ -140,6 +220,7 @@ rog_map:
 
 
   visualization:
+    # ROG-Map 可视化；3DGS 会覆盖为 false。
     enable: false
     # when enabled, use rqt_reconfigure to change the visualization parameters.
     use_dynamic_reconfigure: false
@@ -163,10 +244,13 @@ rog_map:
   raycasting:
     # if disable, the map will only maintain occupied information, and all other grid
     # will be considered as unknown.
+    # 关闭 raycasting 时只维护 occupied 信息；3DGS 静态点云路径通常使用这个模式。
     enable: false
     batch_update_size: 1
+    # 局部更新盒 [m]。3DGS 会按场景尺寸覆盖。
     local_update_box: [ 100,100,5 ]
     # The range of raycasting [m].
+    # raycasting 距离范围 [m]。3DGS 会按场景尺寸覆盖。
     ray_range: [0.5, 100 ]
 
     p_min: 0.12
@@ -184,4 +268,3 @@ rog_map:
     #             the cell will be considered as unknown.
     # in all, 1.0 is more aggressive while 0.0 is more conservative.
     unk_thresh: 1.0
-

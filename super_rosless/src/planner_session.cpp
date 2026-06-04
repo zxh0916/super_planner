@@ -35,14 +35,42 @@ void PlannerSession::setTime(double time_s) {
   map_ptr_->setSimTime(time_s);
 }
 
+rog_map::PointCloud makePointCloud(const std::vector<std::array<double, 4>>& points) {
+  rog_map::PointCloud cloud;
+  cloud.reserve(points.size());
+  for (const auto& item : points) {
+    rog_map::PclPoint p;
+    p.x = static_cast<float>(item[0]);
+    p.y = static_cast<float>(item[1]);
+    p.z = static_cast<float>(item[2]);
+    p.intensity = static_cast<float>(item[3]);
+    cloud.push_back(p);
+  }
+  return cloud;
+}
+
 MapStats PlannerSession::load_static_pcd(const std::string& pcd_path, bool clear) {
-  (void)clear;
+  if (clear) {
+    map_ptr_->clearStaticMap();
+  }
 
   std::size_t point_count = 0;
   const bool ok = map_ptr_->loadStaticPcd(pcd_path, point_count);
   has_map_ = ok && point_count > 0;
   latest_message_ = ok ? "static PCD loaded" : "failed to load static PCD";
   return MapStats{ok, point_count, map_ptr_->mapEmpty(), latest_message_};
+}
+
+MapStats PlannerSession::load_static_points(const std::vector<std::array<double, 4>>& points, bool clear) {
+  if (clear) {
+    map_ptr_->clearStaticMap();
+  }
+
+  const auto cloud = makePointCloud(points);
+  map_ptr_->loadStaticPoints(cloud);
+  has_map_ = !map_ptr_->mapEmpty();
+  latest_message_ = "static points loaded";
+  return MapStats{true, points.size(), map_ptr_->mapEmpty(), latest_message_};
 }
 
 MapUpdateResult PlannerSession::update_sensing(const std::vector<std::array<double, 4>>& points,
@@ -61,24 +89,9 @@ MapUpdateResult PlannerSession::update_sensing(const std::vector<std::array<doub
   rs.rcv_time = time_s;
   map_ptr_->updateRobotStateFull(rs);
 
-  rog_map::PointCloud cloud;
-  cloud.reserve(points.size());
-  for (const auto& item : points) {
-    rog_map::PclPoint p;
-    p.x = static_cast<float>(item[0]);
-    p.y = static_cast<float>(item[1]);
-    p.z = static_cast<float>(item[2]);
-    p.intensity = static_cast<float>(item[3]);
-    cloud.push_back(p);
-  }
-
-  if (!cloud.empty()) {
-    map_ptr_->updateMap(cloud, std::make_pair(state.position, state.quat));
-    has_map_ = true;
-  }
   refreshRobotState();
-  latest_message_ = "sensing updated";
-  return MapUpdateResult{true, points.size(), cloud.size(), robot_state_.rcv, latest_message_};
+  latest_message_ = points.empty() ? "state updated" : "state updated; point cloud ignored";
+  return MapUpdateResult{true, points.size(), 0, robot_state_.rcv, latest_message_};
 }
 
 GoalResult PlannerSession::set_goal(const Vec3f& position, double yaw) {

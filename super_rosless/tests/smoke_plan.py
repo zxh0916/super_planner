@@ -21,7 +21,7 @@ def main():
         "quat": [1.0, 0.0, 0.0, 0.0],
         "yaw": 0.0,
     }
-    print(planner.update_sensing(np.empty((0, 3), dtype=np.float64), state, 0.0))
+    print(planner.update_sensing(state, 0.0))
     print(planner.set_goal([5.0, 0.0, 1.5]))
     for t in np.linspace(0.0, 0.8, 9):
         result = planner.step(float(t))
