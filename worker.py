@@ -244,11 +244,24 @@ def main() -> None:
 
             state = request["state"]
             target = _finite_vec(request["target"], 3)
+            point_cloud = request.get("point_cloud")
+            if point_cloud is not None:
+                point_cloud = np.asarray(point_cloud, dtype=np.float64).reshape(-1, 3)
             time_s = float(request["time_s"])
             dt = float(request["dt"])
             replan_dt = float(request["replan_dt"])
             force_reset = bool(request.get("force_reset", False))
+            point_cloud_required = bool(request.get("point_cloud_required", False))
             periodic_replan = replan_dt > 0.0
+
+            should_step = (
+                force_reset
+                or (periodic_replan and not has_trajectory)
+                or (periodic_replan and time_s - last_step_time >= replan_dt - 1e-9)
+            )
+            if should_step and point_cloud_required and point_cloud is None:
+                _send_msg(args.write_fd, {"ok": False, "need_point_cloud": True})
+                continue
 
             if force_reset:
                 planner.reset(False)
@@ -256,14 +269,13 @@ def main() -> None:
                 has_trajectory = False
                 last_step_time = -float("inf")
 
-            # The static scene map is loaded by set_map. During replanning,
-            # update_sensing only refreshes SUPER's robot state.
-            should_step = (
-                force_reset
-                or (periodic_replan and not has_trajectory)
-                or (periodic_replan and time_s - last_step_time >= replan_dt - 1e-9)
-            )
             if should_step:
+                if point_cloud is not None:
+                    map_result = planner.load_static_points(point_cloud, True)
+                    if not bool(map_result.get("success", False)):
+                        _send_msg(args.write_fd, _fallback_command(state, map_result.get("message", "map update failed")))
+                        continue
+
                 update_result = planner.update_sensing(state, time_s)
                 if not bool(update_result.get("success", False)):
                     _send_msg(args.write_fd, _fallback_command(state, update_result.get("message", "sensing update failed")))
