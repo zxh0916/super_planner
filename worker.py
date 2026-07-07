@@ -252,6 +252,7 @@ def main() -> None:
             replan_dt = float(request["replan_dt"])
             force_reset = bool(request.get("force_reset", False))
             point_cloud_required = bool(request.get("point_cloud_required", False))
+            trajectory_debug = bool(request.get("trajectory_debug", True))
             periodic_replan = replan_dt > 0.0
 
             should_step = (
@@ -312,7 +313,11 @@ def main() -> None:
                 continue
 
             command = planner.sample_command(time_s + dt)
-            if bool(command.get("trajectory_finished", False)) or bool(command.get("on_backup_trajectory", False)):
+            if (
+                not trajectory_debug
+                or bool(command.get("trajectory_finished", False))
+                or bool(command.get("on_backup_trajectory", False))
+            ):
                 trajectory_points = []
             else:
                 trajectory = planner.get_trajectory()
