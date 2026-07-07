@@ -7,6 +7,7 @@ import os
 import pickle
 import struct
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -213,6 +214,7 @@ def main() -> None:
     has_goal = False
     has_trajectory = False
     last_step_time = -float("inf")
+    loaded_point_cloud_id = None
 
     while True:
         request = _recv_msg(args.read_fd)
@@ -223,6 +225,7 @@ def main() -> None:
                 break
 
             if op == "set_map":
+                point_cloud_id = request.get("point_cloud_id", "initial")
                 point_cloud = np.asarray(request["point_cloud"], dtype=np.float64).reshape(-1, 3)
                 map_result = planner.load_static_points(point_cloud, True)
                 if not bool(map_result.get("success", False)):
@@ -232,6 +235,7 @@ def main() -> None:
                 has_goal = False
                 has_trajectory = False
                 last_step_time = -float("inf")
+                loaded_point_cloud_id = point_cloud_id
                 _send_msg(
                     args.write_fd,
                     {"ok": True, "point_count": int(map_result.get("point_count", point_cloud.shape[0]))},
@@ -242,9 +246,24 @@ def main() -> None:
                 _send_msg(args.write_fd, {"ok": False, "message": f"unknown op: {op}"})
                 continue
 
+            timing_s: dict[str, float] = {}
+            last_t = time.perf_counter()
+
+            def mark_timing(name: str) -> None:
+                nonlocal last_t
+                now = time.perf_counter()
+                timing_s[name] = timing_s.get(name, 0.0) + now - last_t
+                last_t = now
+
+            def timed_response(payload: dict) -> dict:
+                payload = dict(payload)
+                payload["timing_s"] = {key: float(value) for key, value in timing_s.items()}
+                return payload
+
             state = request["state"]
             target = _finite_vec(request["target"], 3)
             point_cloud = request.get("point_cloud")
+            point_cloud_id = request.get("point_cloud_id")
             if point_cloud is not None:
                 point_cloud = np.asarray(point_cloud, dtype=np.float64).reshape(-1, 3)
             time_s = float(request["time_s"])
@@ -254,14 +273,17 @@ def main() -> None:
             point_cloud_required = bool(request.get("point_cloud_required", False))
             trajectory_debug = bool(request.get("trajectory_debug", True))
             periodic_replan = replan_dt > 0.0
+            mark_timing("parse_request")
 
             should_step = (
                 force_reset
                 or (periodic_replan and not has_trajectory)
                 or (periodic_replan and time_s - last_step_time >= replan_dt - 1e-9)
             )
-            if should_step and point_cloud_required and point_cloud is None:
-                _send_msg(args.write_fd, {"ok": False, "need_point_cloud": True})
+            mark_timing("decide_replan")
+            map_changed = point_cloud_id != loaded_point_cloud_id
+            if should_step and point_cloud_required and point_cloud is None and map_changed:
+                _send_msg(args.write_fd, timed_response({"ok": False, "need_point_cloud": True}))
                 continue
 
             if force_reset:
@@ -269,25 +291,34 @@ def main() -> None:
                 has_goal = False
                 has_trajectory = False
                 last_step_time = -float("inf")
+            mark_timing("reset")
 
             if should_step:
                 if point_cloud is not None:
                     map_result = planner.load_static_points(point_cloud, True)
+                    mark_timing("load_static_points")
                     if not bool(map_result.get("success", False)):
-                        _send_msg(args.write_fd, _fallback_command(state, map_result.get("message", "map update failed")))
+                        _send_msg(args.write_fd, timed_response(_fallback_command(state, map_result.get("message", "map update failed"))))
                         continue
+                    loaded_point_cloud_id = point_cloud_id
+                else:
+                    mark_timing("load_static_points")
 
                 update_result = planner.update_sensing(state, time_s)
+                mark_timing("update_sensing")
                 if not bool(update_result.get("success", False)):
-                    _send_msg(args.write_fd, _fallback_command(state, update_result.get("message", "sensing update failed")))
+                    _send_msg(args.write_fd, timed_response(_fallback_command(state, update_result.get("message", "sensing update failed"))))
                     continue
 
                 if force_reset or not has_goal:
                     goal_result = planner.set_goal(target)
+                    mark_timing("set_goal")
                     has_goal = bool(goal_result.get("accepted", False))
                     if not has_goal:
-                        _send_msg(args.write_fd, _fallback_command(state, goal_result.get("message", "goal rejected")))
+                        _send_msg(args.write_fd, timed_response(_fallback_command(state, goal_result.get("message", "goal rejected"))))
                         continue
+                else:
+                    mark_timing("set_goal")
 
                 new_trajectory = False
                 message = ""
@@ -303,16 +334,23 @@ def main() -> None:
                     last_step_time = step_time
                     if has_trajectory:
                         break
+                mark_timing("planner_step")
 
                 if not has_trajectory:
-                    _send_msg(args.write_fd, _fallback_command(state, message or "planner has no trajectory"))
+                    _send_msg(args.write_fd, timed_response(_fallback_command(state, message or "planner has no trajectory")))
                     continue
+            else:
+                mark_timing("load_static_points")
+                mark_timing("update_sensing")
+                mark_timing("set_goal")
+                mark_timing("planner_step")
 
             if not has_trajectory:
-                _send_msg(args.write_fd, _fallback_command(state, "planner has no trajectory"))
+                _send_msg(args.write_fd, timed_response(_fallback_command(state, "planner has no trajectory")))
                 continue
 
             command = planner.sample_command(time_s + dt)
+            mark_timing("sample_command")
             if (
                 not trajectory_debug
                 or bool(command.get("trajectory_finished", False))
@@ -326,14 +364,17 @@ def main() -> None:
                     time_s + dt,
                     dt,
                 )
+            mark_timing("trajectory_debug")
             _send_msg(
                 args.write_fd,
-                {
-                    "ok": True,
-                    "new_trajectory": bool(has_trajectory),
-                    "trajectory_points": trajectory_points,
-                    "command": command,
-                },
+                timed_response(
+                    {
+                        "ok": True,
+                        "new_trajectory": bool(has_trajectory),
+                        "trajectory_points": trajectory_points,
+                        "command": command,
+                    }
+                ),
             )
         except Exception as exc:  # pragma: no cover - defensive worker boundary
             _send_msg(args.write_fd, {
