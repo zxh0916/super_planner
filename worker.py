@@ -16,6 +16,8 @@ import numpy as np
 DIFFAERO_ROOT = Path(__file__).resolve().parent.parent
 SUPER_ROOT = DIFFAERO_ROOT / "third_party" / "super_planner"
 SUPER_BUILD = SUPER_ROOT / "super_rosless" / "build"
+GOAL_UPDATE_DISTANCE_M = 0.15
+GOAL_UPDATE_YAW_RAD = 0.03
 
 
 def _load_super_module():
@@ -40,6 +42,12 @@ def _finite_vec(value, dim: int) -> list[float]:
     return arr[:dim].astype(float).tolist()
 
 
+def _angle_abs_diff(a: float, b: float) -> float:
+    if not math.isfinite(a) or not math.isfinite(b):
+        return 0.0 if (not math.isfinite(a) and not math.isfinite(b)) else float("inf")
+    return abs((a - b + math.pi) % (2.0 * math.pi) - math.pi)
+
+
 def _fallback_command(state: dict, reason: str) -> dict:
     return {
         "ok": False,
@@ -55,6 +63,14 @@ def _fallback_command(state: dict, reason: str) -> dict:
             "trajectory_finished": True,
         },
     }
+
+
+def _hold_command(state: dict, reason: str) -> dict:
+    command = _fallback_command(state, reason)
+    command["ok"] = True
+    command["message"] = reason
+    command["command"]["trajectory_finished"] = False
+    return command
 
 
 def _eval_position_piece(coeff: np.ndarray, local_t: float) -> np.ndarray:
@@ -214,6 +230,9 @@ def main() -> None:
     has_trajectory = False
     last_step_time = -float("inf")
     loaded_point_cloud_id = None
+    last_goal_target: np.ndarray | None = None
+    last_goal_yaw = float("nan")
+    last_goal_set_time = -float("inf")
 
     while True:
         request = _recv_msg(args.read_fd)
@@ -235,6 +254,9 @@ def main() -> None:
                 has_trajectory = False
                 last_step_time = -float("inf")
                 loaded_point_cloud_id = point_cloud_id
+                last_goal_target = None
+                last_goal_yaw = float("nan")
+                last_goal_set_time = -float("inf")
                 _send_msg(args.write_fd, {"ok": True})
                 continue
 
@@ -244,6 +266,8 @@ def main() -> None:
 
             state = request["state"]
             target = _finite_vec(request["target"], 3)
+            raw_target_yaw = request.get("target_yaw", None)
+            target_yaw = float(raw_target_yaw) if raw_target_yaw is not None else float("nan")
             point_cloud = request.get("point_cloud")
             point_cloud_id = request.get("point_cloud_id")
             if point_cloud is not None:
@@ -251,6 +275,7 @@ def main() -> None:
             time_s = float(request["time_s"])
             dt = float(request["dt"])
             replan_dt = float(request["replan_dt"])
+            target_change_min_dt = max(float(request.get("target_change_min_dt", 0.0)), 0.0)
             force_reset = bool(request.get("force_reset", False))
             point_cloud_required = bool(request.get("point_cloud_required", False))
             trajectory_debug = bool(request.get("trajectory_debug", True))
@@ -271,6 +296,9 @@ def main() -> None:
                 has_goal = False
                 has_trajectory = False
                 last_step_time = -float("inf")
+                last_goal_target = None
+                last_goal_yaw = float("nan")
+                last_goal_set_time = -float("inf")
 
             if should_step:
                 if point_cloud is not None:
@@ -285,12 +313,41 @@ def main() -> None:
                     _send_msg(args.write_fd, _fallback_command(state, update_result.get("message", "sensing update failed")))
                     continue
 
-                if force_reset or not has_goal:
-                    goal_result = planner.set_goal(target)
-                    has_goal = bool(goal_result.get("accepted", False))
-                    if not has_goal:
-                        _send_msg(args.write_fd, _fallback_command(state, goal_result.get("message", "goal rejected")))
-                        continue
+                target_arr = np.asarray(target, dtype=np.float64)
+                target_changed = (
+                    last_goal_target is None
+                    or not np.isfinite(last_goal_target).all()
+                    or np.linalg.norm(target_arr - last_goal_target) > GOAL_UPDATE_DISTANCE_M
+                    or _angle_abs_diff(target_yaw, last_goal_yaw) > GOAL_UPDATE_YAW_RAD
+                )
+                target_update_ready = (
+                    force_reset
+                    or not has_goal
+                    or target_change_min_dt <= 0.0
+                    or time_s - last_goal_set_time >= target_change_min_dt - 1e-9
+                )
+                if force_reset or not has_goal or (target_changed and target_update_ready):
+                    goal_result = planner.set_goal(target, target_yaw)
+                    goal_accepted = bool(goal_result.get("accepted", False))
+                    if not goal_accepted:
+                        message = str(goal_result.get("message", "goal rejected"))
+                        if message == "goal is too close to current state":
+                            last_goal_target = target_arr.copy()
+                            last_goal_yaw = target_yaw
+                            last_goal_set_time = time_s
+                            if not has_trajectory:
+                                _send_msg(args.write_fd, _hold_command(state, message))
+                                continue
+                        else:
+                            has_goal = False
+                            _send_msg(args.write_fd, _fallback_command(state, message))
+                            continue
+                    else:
+                        has_goal = True
+                        last_goal_target = target_arr.copy()
+                        last_goal_yaw = target_yaw
+                        last_goal_set_time = time_s
+                        has_trajectory = False
 
                 message = ""
                 # The ROS-less FSM first consumes the new goal, then generates
