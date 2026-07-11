@@ -48,6 +48,14 @@ def _angle_abs_diff(a: float, b: float) -> float:
     return abs((a - b + math.pi) % (2.0 * math.pi) - math.pi)
 
 
+def _request_point_cloud(request: dict) -> np.ndarray | None:
+    path = request.get("point_cloud_path")
+    value = np.load(path, mmap_mode="r", allow_pickle=False) if path else request.get("point_cloud")
+    if value is None:
+        return None
+    return np.asarray(value, dtype=np.float64).reshape(-1, 3)
+
+
 def _fallback_command(state: dict, reason: str) -> dict:
     return {
         "ok": False,
@@ -244,7 +252,9 @@ def main() -> None:
 
             if op == "set_map":
                 point_cloud_id = request.get("point_cloud_id", "initial")
-                point_cloud = np.asarray(request["point_cloud"], dtype=np.float64).reshape(-1, 3)
+                point_cloud = _request_point_cloud(request)
+                if point_cloud is None:
+                    raise ValueError("set_map requires point_cloud or point_cloud_path")
                 map_result = planner.load_static_points(point_cloud, True)
                 if not bool(map_result.get("success", False)):
                     _send_msg(args.write_fd, {"ok": False, "message": map_result.get("message", "map setup failed")})
@@ -268,10 +278,8 @@ def main() -> None:
             target = _finite_vec(request["target"], 3)
             raw_target_yaw = request.get("target_yaw", None)
             target_yaw = float(raw_target_yaw) if raw_target_yaw is not None else float("nan")
-            point_cloud = request.get("point_cloud")
+            point_cloud = _request_point_cloud(request)
             point_cloud_id = request.get("point_cloud_id")
-            if point_cloud is not None:
-                point_cloud = np.asarray(point_cloud, dtype=np.float64).reshape(-1, 3)
             time_s = float(request["time_s"])
             dt = float(request["dt"])
             replan_dt = float(request["replan_dt"])
@@ -371,6 +379,7 @@ def main() -> None:
                 continue
 
             command = planner.sample_command(time_s + dt)
+            trajectory = planner.get_trajectory()
             if (
                 not trajectory_debug
                 or bool(command.get("trajectory_finished", False))
@@ -378,7 +387,6 @@ def main() -> None:
             ):
                 trajectory_points = []
             else:
-                trajectory = planner.get_trajectory()
                 trajectory_points = _sample_position_trajectory(
                     trajectory.get("position", {}),
                     time_s + dt,
@@ -388,6 +396,7 @@ def main() -> None:
                 args.write_fd,
                 {
                     "ok": True,
+                    "trajectory": trajectory,
                     "trajectory_points": trajectory_points,
                     "command": command,
                 },
