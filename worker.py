@@ -218,26 +218,68 @@ def main() -> None:
     faulthandler.enable(file=sys.stderr, all_threads=True)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--read-fd", type=int, required=True)
-    parser.add_argument("--write-fd", type=int, required=True)
+    parser.add_argument("--read-fd", type=int)
+    parser.add_argument("--write-fd", type=int)
+    parser.add_argument("--read-fds")
+    parser.add_argument("--write-fds")
     parser.add_argument("--config", required=True)
+    parser.add_argument("--initial-map-path")
+    parser.add_argument("--point-cloud-id")
     args = parser.parse_args()
+
+    read_fds = [int(value) for value in args.read_fds.split(",")] if args.read_fds else []
+    write_fds = [int(value) for value in args.write_fds.split(",")] if args.write_fds else []
+    if bool(read_fds) != bool(write_fds) or len(read_fds) != len(write_fds):
+        parser.error("--read-fds and --write-fds must contain matching descriptor lists")
+    if not read_fds and (args.read_fd is None or args.write_fd is None):
+        parser.error("single-worker mode requires --read-fd and --write-fd")
+    initialization_write_fds = write_fds or [args.write_fd]
 
     try:
         super = _load_super_module()
         planner = super.PlannerSession(args.config)
+        loaded_point_cloud_id = None
+        if args.initial_map_path:
+            point_cloud = np.asarray(
+                np.load(args.initial_map_path, mmap_mode="r", allow_pickle=False), dtype=np.float64
+            ).reshape(-1, 3)
+            map_result = planner.load_static_points(point_cloud, True)
+            if not bool(map_result.get("success", False)):
+                raise RuntimeError(map_result.get("message", "map setup failed"))
+            planner.reset(False)
+            loaded_point_cloud_id = args.point_cloud_id
     except Exception as exc:
-        _send_msg(args.write_fd, {
+        response = {
             "ok": False,
             "message": f"worker initialization failed: {type(exc).__name__}: {exc}",
             "traceback": traceback.format_exc(),
-        })
+        }
+        for write_fd in initialization_write_fds:
+            _send_msg(write_fd, response)
         return
 
+    if read_fds:
+        all_fds = set(read_fds + write_fds)
+        children = []
+        for child_read_fd, child_write_fd in zip(read_fds, write_fds):
+            pid = os.fork()
+            if pid == 0:
+                args.read_fd = child_read_fd
+                args.write_fd = child_write_fd
+                for fd in all_fds - {child_read_fd, child_write_fd}:
+                    os.close(fd)
+                _send_msg(args.write_fd, {"ok": True, "shared_map_ready": True, "pid": os.getpid()})
+                break
+            children.append(pid)
+        else:
+            for fd in all_fds:
+                os.close(fd)
+            for pid in children:
+                os.waitpid(pid, 0)
+            return
     has_goal = False
     has_trajectory = False
     last_step_time = -float("inf")
-    loaded_point_cloud_id = None
     last_goal_target: np.ndarray | None = None
     last_goal_yaw = float("nan")
     last_goal_set_time = -float("inf")
