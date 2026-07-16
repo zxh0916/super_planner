@@ -1,4 +1,5 @@
 import pathlib
+import resource
 import sys
 
 import numpy as np
@@ -13,6 +14,12 @@ import super_planner_py as super  # noqa: E402
 
 def main():
     planner = super.PlannerSession(str(ROOT / "super_planner/config/static_high_speed.yaml"))
+    init_max_rss_kib = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    print("init_max_rss_kib", init_max_rss_kib)
+    assert init_max_rss_kib < 800_000, (
+        f"PlannerSession initialization used {init_max_rss_kib} KiB; "
+        "A* nodes must be allocated on demand"
+    )
     state = {
         "position": [0.0, 0.0, 1.5],
         "velocity": [0.0, 0.0, 0.0],

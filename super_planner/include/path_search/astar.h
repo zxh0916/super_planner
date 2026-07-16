@@ -29,6 +29,7 @@
 #include "rog_map_ros/rog_map_ros1.hpp"
 #include "rog_map_ros/rog_map_ros2.hpp"
 #include "queue"
+#include "memory"
 #include "path_search/config.hpp"
 #include "utils/header/type_utils.hpp"
 #include <ros_interface/ros_interface.hpp>
@@ -85,7 +86,8 @@ namespace path_search {
         const double tie_breaker_ = 1.0 + 1e-5;
         rog_map::vec_Vec3i neighbor_list;
 
-        vector<GridNode> grid_node_buffer_;
+        static constexpr size_t GRID_NODE_CHUNK_SIZE = 4096;
+        vector<std::unique_ptr<GridNode[]>> grid_node_chunks_;
 
         int rounds_{0};
 
@@ -115,6 +117,8 @@ namespace path_search {
         double getHeu(GridNodePtr node1, GridNodePtr node2, int type = DIAG) const;
 
          int getLocalIndexHash(const rog_map::Vec3i &id_in) const;
+
+        GridNodePtr getGridNode(const int &linear_index);
 
         void posToGlobalIndex(const rog_map::Vec3f &pos, rog_map::Vec3i &id_g) const ;
 
