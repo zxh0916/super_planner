@@ -37,27 +37,8 @@ namespace path_search {
         cout << rog_map::GREEN << " -- [RM] Init Astar-map." << rog_map::RESET << endl;
         int map_buffer_size = cfg_.map_voxel_num(0) * cfg_.map_voxel_num(1) * cfg_.map_voxel_num(2);
         grid_node_buffer_.resize(map_buffer_size);
-        for (auto &i: grid_node_buffer_) {
-            i = new GridNode;
-            i->rounds = 0;
-        }
         cout << rog_map::BLUE << "\tmap index size: " << cfg_.map_size_i.transpose() << rog_map::RESET << endl;
         cout << rog_map::BLUE << "\tmap vox_num: " << cfg_.map_voxel_num.transpose() << rog_map::RESET << endl;
-        int test_num = 100;
-        for (int i = -test_num; i <= test_num; i++) {
-            for (int j = -test_num; j <= test_num; j++) {
-                for (int k = -test_num; k <= test_num; k++) {
-                    rog_map::Vec3i delta(i, j, k);
-                    sorted_pts.push_back(delta);
-                }
-            }
-        }
-        sort(sorted_pts.begin(), sorted_pts.end(),
-             [](const rog_map::Vec3i &pt1, const rog_map::Vec3i &pt2) {
-                 double dist1 = pt1.x() * pt1.x() + pt1.y() * pt1.y() + pt1.z() * pt1.z();
-                 double dist2 = pt2.x() * pt2.x() + pt2.y() * pt2.y() + pt2.z() * pt2.z();
-                 return dist1 < dist2;
-             });
     }
 
     RET_CODE
@@ -326,8 +307,8 @@ namespace path_search {
         }
 
 
-        GridNodePtr startPtr = grid_node_buffer_[getLocalIndexHash(start_idx)];
-        GridNodePtr endPtr = grid_node_buffer_[getLocalIndexHash(end_idx)];
+        GridNodePtr startPtr = &grid_node_buffer_[getLocalIndexHash(start_idx)];
+        GridNodePtr endPtr = &grid_node_buffer_[getLocalIndexHash(end_idx)];
         endPtr->id_g = end_idx;
 
         std::priority_queue<GridNodePtr, std::vector<GridNodePtr>, NodeComparator> open_set;
@@ -457,7 +438,7 @@ namespace path_search {
                             continue;
                         }
 
-                        neighborPtr = grid_node_buffer_[getLocalIndexHash(neighborIdx)];
+                        neighborPtr = &grid_node_buffer_[getLocalIndexHash(neighborIdx)];
                         if (neighborPtr == nullptr) {
                             cout << rog_map::RED << " -- [RM] neighborPtr is null, which should not happen." <<
                                  rog_map::RESET
@@ -578,7 +559,7 @@ namespace path_search {
         rog_map::Vec3i start_idx;
         posToGlobalIndex(local_start_pt, start_idx);
 
-        GridNodePtr startPtr = grid_node_buffer_[getLocalIndexHash(start_idx)];
+        GridNodePtr startPtr = &grid_node_buffer_[getLocalIndexHash(start_idx)];
         std::priority_queue<GridNodePtr, std::vector<GridNodePtr>, NodeComparator> open_set;
         GridNodePtr neighborPtr = NULL;
         GridNodePtr current = NULL;
@@ -665,7 +646,7 @@ namespace path_search {
                             continue;
                         }
 
-                        neighborPtr = grid_node_buffer_[getLocalIndexHash(neighborIdx)];
+                        neighborPtr = &grid_node_buffer_[getLocalIndexHash(neighborIdx)];
                         if (neighborPtr == nullptr) {
                             cout << rog_map::RED << " -- [RM] neighborPtr is null, which should not happen" <<
                                  rog_map::RESET << endl;

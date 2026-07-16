@@ -83,10 +83,9 @@ namespace path_search {
 
         PathSearchConfig cfg_;
         const double tie_breaker_ = 1.0 + 1e-5;
-        rog_map::vec_Vec3i sorted_pts;
         rog_map::vec_Vec3i neighbor_list;
 
-        vector<GridNodePtr> grid_node_buffer_;
+        vector<GridNode> grid_node_buffer_;
 
         int rounds_{0};
 

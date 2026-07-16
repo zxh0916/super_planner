@@ -74,11 +74,11 @@ namespace super_utils{
     }
 
     struct RobotState {
-        Vec3f p, v, a, j;
-        double yaw;
-        double rcv_time;
+        Vec3f p{Vec3f::Zero()}, v{Vec3f::Zero()}, a{Vec3f::Zero()}, j{Vec3f::Zero()};
+        double yaw{0.0};
+        double rcv_time{0.0};
         bool rcv{false};
-        Quatf q;
+        Quatf q{Quatf::Identity()};
     };
 
 
