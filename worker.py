@@ -277,6 +277,8 @@ def main() -> None:
             for pid in children:
                 os.waitpid(pid, 0)
             return
+    else:
+        _send_msg(args.write_fd, {"ok": True, "shared_map_ready": True, "pid": os.getpid()})
     has_goal = False
     has_trajectory = False
     last_step_time = -float("inf")
