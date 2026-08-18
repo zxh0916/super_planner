@@ -11,3 +11,8 @@
 **.ply
 *.egg-info/
 *.so
+
+# Keep large runtime and documentation assets outside the source repository.
+/misc/
+/mars_uav_sim/perfect_drone_sim/meshes/
+/mars_uav_sim/perfect_drone_sim/pcd/

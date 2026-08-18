@@ -12,15 +12,10 @@
     <a href="https://github.com/lawrence-cn" target="_blank">Nan Chen</a>, and
         <a href="https://mars.hku.hk/people.html" target="_blank">Fu Zhang</a>
     <p>
-        <h45>
-            <br>
-           <img src='./misc/mars_logo.svg' alt='HKU MaRS Lab'>
-            <br>
-        </h5>
+        <a href="https://www.science.org/doi/10.1126/scirobotics.ado6187">Paper</a> |
+        <a href="https://www.bilibili.com/video/BV1BSFgeJEJn/">Bilibili</a> |
+        <a href="https://youtu.be/GPHuzG0ANmI?si=npW-FNp1rkQQ5YaF">YouTube</a>
     </p>
-    <a href='https://www.science.org/doi/10.1126/scirobotics.ado6187'><img src='./misc/arXiv-super.svg' alt='arxiv'></a>
-    <a href="https://www.bilibili.com/video/BV1BSFgeJEJn/"><img alt="Bilibili" src="./misc/Video-Bilibili-blue.svg"/></a>
-    <a href="https://youtu.be/GPHuzG0ANmI?si=npW-FNp1rkQQ5YaF"><img alt="Youtube" src="./misc/Video-Youtube-red.svg"/></a>
 </div>
 
 
@@ -31,7 +26,7 @@
 * **Jan. 29, 2025** - The paper of SUPER is now featured on the official website of [*Science Robotics*](https://www.science.org/doi/10.1126/scirobotics.ado6187).
 * **Dec. 12, 2024** - 🎉 Our paper has been accepted by *Science Robotics*! 
 
-Our paper is also aviliable at [here](misc/scirobotics.ado6187.pdf). If our repository supports your academic projects, please cite our work. Thank you!
+Our paper is also available from [Science Robotics](https://www.science.org/doi/10.1126/scirobotics.ado6187). If our repository supports your academic projects, please cite our work. Thank you!
 
 ```tex
 @article{ren2025safety,
@@ -67,16 +62,13 @@ Our paper is also aviliable at [here](misc/scirobotics.ado6187.pdf). If our repo
 
 ## 1.1 Autonomous Navigation in Challenging Environments
 (Click for video demo)
-[![Video Demo](./misc/fig1.gif)](https://youtu.be/GPHuzG0ANmI?si=W83mDMxqfgWReWPF)
+[Video demo](https://youtu.be/GPHuzG0ANmI?si=W83mDMxqfgWReWPF)
 
 ## 1.2 Applications: Object Tracking & Autonomous Exploration
 
 SUPER has been successfully deployed in various applications, including large-scale autonomous exploration in an ongoing project by [@jackykongfz](https://github.com/jackykongfz) and [@ZbyLGsc](https://github.com/ZbyLGsc) from [STAR Lab](sysu-star.com), among others, as well as object tracking under both day and night conditions.
 
-![exp](./misc/exp.gif)
 > ⬆️ This segment is from an unpublished work by Kong [[@jackykongfz](https://github.com/jackykongfz) ] et al., conducted in collaboration with [STAR Lab](sysu-star.com), using SUPER.
-
-![tracking](./misc/tracking.gif)
 
 
 
@@ -86,16 +78,19 @@ SUPER has been successfully deployed in various applications, including large-sc
 
 Building on SUPER, a similar planning system has been successfully validated in [Autonomous Navigation for Tail-Sitter UAVs](https://github.com/hku-mars/EFOPT)  by [@genegzl](https://github.com/genegzl)  et al.
 
-![tailsitter](./misc/tailsitter.gif)
-
 ### 1.3.2 FAST-LIVO2 (TRO '24)
 SUPER serves as the flight platform and navigation system in the video demonstration of [FAST-LIVO2: Fast, Direct LiDAR-Inertial-Visual Odometry](https://github.com/hku-mars/FAST-LIVO2) by [@xuankuzcr](https://github.com/xuankuzcr) et al.
-
-<img src="./misc/image-20250130031404057.png" alt="image-20250130031404057" style="zoom:50%;" />
 
 # 2 Quick Start
 
 ## 2.1 Installation
+
+This fork intentionally keeps only source and configuration files. Documentation media,
+simulator meshes, and example PCD maps are not stored in Git. Before running the bundled
+simulator, provide the required model files under
+`mars_uav_sim/perfect_drone_sim/meshes/` and a map under
+`mars_uav_sim/perfect_drone_sim/pcd/`. The original assets remain available from the
+[upstream SUPER repository](https://github.com/hku-mars/SUPER).
 
 Install dependencies
 
@@ -207,8 +202,7 @@ A detailed guide for deploying SUPER on real-world hardware will be available so
 
 SUPER allows users to load their own **.pcd** maps as simulation environments. To do so:
 
-1. Place your **.pcd** file in:
-   **[./mars_uav_sim/perfect_drone_sim/pcd/](./mars_uav_sim/perfect_drone_sim/pcd)**
+1. Create `mars_uav_sim/perfect_drone_sim/pcd/` and place your **.pcd** file there.
 2. Modify the `pcd_name` parameter in the corresponding YAML file located at:
    **[./mars_uav_sim/perfect_drone_sim/config](./mars_uav_sim/perfect_drone_sim/config)**
 
