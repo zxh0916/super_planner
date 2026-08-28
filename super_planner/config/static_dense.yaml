@@ -50,7 +50,7 @@ super_planner:
   # 安全走廊边界余量 [m]。过小更贴障碍，过大更保守且可能无解。
   corridor_bound_dis: 0.3
   # 走廊生成时单段线长度上限 [m]；越小走廊分段越细，计算更重。
-  corridor_line_max_length: 1.0
+  corridor_line_max_length: 3.0
   # 安全走廊 seed line 的最大长度 [m]，限制局部走廊跨度。
   safe_corridor_line_max_length: 6.0
   # IRIS/CIRI 走廊膨胀迭代次数；更大可能更宽但更耗时。
@@ -64,7 +64,7 @@ super_planner:
   # 感知视距 [m]；负数表示不额外按距离截断。
   sensing_horizon: -1
   # receding horizon 提交距离 [m]。适当增大可减少过度短视重规划，使轨迹更连贯。
-  receding_dis: 1.0
+  receding_dis: 3.0
   # 机器人半径 [m]，影响走廊膨胀和安全检查。3DGS 会用 env.r_drone 覆盖。
   robot_r: 0.2
   # yaw 最大角速度 [rad/s]。3DGS 会由 oa_3dgs.yaml 覆盖；降小可减少快速转头。
