@@ -683,13 +683,13 @@ BackupTrajOpt::optimize(const Trajectory &exp_traj,
         success = false;
     }
 
-    if (opt_vars.penalty_log(1) > cfg_.penna_pos * 0.05) {
+    if (success && opt_vars.penalty_log(1) > cfg_.penna_pos * 0.05) {
         std::cout << YELLOW << " -- [SUPER] Minco backup_traj out of corridor." << RESET << std::endl;
         success = false;
     }
     out_ts = opt_vars.ts;
 
-    if (!checkTrajMagnitudeBound(out_traj)) {
+    if (success && !checkTrajMagnitudeBound(out_traj)) {
         success = false;
     }
 
@@ -767,13 +767,13 @@ BackupTrajOpt::optimize(const Trajectory &exp_traj,
         success = false;
     }
 
-    if (opt_vars.penalty_log(1) > cfg_.penna_pos * 0.05) {
+    if (success && opt_vars.penalty_log(1) > cfg_.penna_pos * 0.05) {
         std::cout << YELLOW << " -- [SUPER] Minco backup_traj out of corridor." << RESET << std::endl;
         success = false;
     }
     out_ts = opt_vars.ts;
 
-    if (!checkTrajMagnitudeBound(out_traj)) {
+    if (success && !checkTrajMagnitudeBound(out_traj)) {
         success = false;
     }
 

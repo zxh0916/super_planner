@@ -1001,7 +1001,6 @@ namespace super_planner {
         TimeConsuming t_back_opt("t_back_opt", false);
         double opt_ts = heu_ts;
         Trajectory temp_pos_traj;
-        auto sfc0 = back_traj_info.getSFC();
         bool temp_ret = back_traj_opt_->optimize(ref_exp_traj.posTraj(),
                                                  t0,
                                                  te,
@@ -1012,6 +1011,11 @@ namespace super_planner {
                                                  temp_pos_traj,
                                                  opt_ts);
         time_consuming_[BACK_TRAJ_OPT] = t_back_opt.stop();
+        if (!temp_ret) {
+            ros_ptr_->warn(" -- [SUPER] OptimizationBakTrajInPolytopes failed, force return");
+            back_traj_info.setEmpty();
+            return OPT_FAILED;
+        }
 
         {
             double init_ts;
@@ -1021,26 +1025,9 @@ namespace super_planner {
             latest_replan.setBackupCondition(init_ts, init_times, init_ps,
                                              t0, te,
                                              back_traj_info.getSFC());
-            Trajectory traj;
-            double out_ts;
-            back_traj_opt_->optimize(ref_exp_traj.posTraj(),
-                                     t0,
-                                     te,
-                                     init_ts,
-                                     sfc0,
-                                     init_times,
-                                     init_ps,
-                                     traj,
-                                     out_ts
-            );
-
         }
 
-        if (!temp_ret) {
-            ros_ptr_->warn(" -- [SUPER] OptimizationBakTrajInPolytopes failed, force return");
-            back_traj_info.setEmpty();
-            return OPT_FAILED;
-        } else {
+        {
             Vec4f yaw_init_vec = ref_exp_traj.getYawState(opt_ts).row(0);
             Vec4f yaw_goal{0, 0, 0, 0};
             bool free_end{true};
