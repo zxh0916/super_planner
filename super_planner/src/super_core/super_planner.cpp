@@ -706,6 +706,7 @@ namespace super_planner {
             ros_ptr_->vizFrontendPath(guide_path);
             time_consuming_[VISUALIZATION] += t_viz.stop();
         }
+        latest_replan.setGuidePath(guide_path);
         shifted_sfc_start_pt_ = Vec3f(9999,9999,9999);
         bool bool_ret_code = cg_ptr_->SearchPolytopeOnPath(guide_path, sfc, shifted_sfc_start_pt_, cfg_.use_fov_cut);
 

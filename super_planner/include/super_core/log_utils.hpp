@@ -105,6 +105,17 @@ namespace super_planner {
             return total_t;
         }
 
+        const vec_Vec3f &getReferencePath() const { return reference_path; }
+        const VecDf &getExpInitTimes() const { return exp_init_t_vec; }
+        const vec_Vec3f &getExpInitPoints() const { return exp_init_ps; }
+        const PolytopeVec &getExpSfc() const { return exp_sfc; }
+        const Trajectory &getExpTraj() const { return exp_traj; }
+        const Trajectory &getBackupTraj() const { return backup_traj; }
+        double getBackupInitTs() const { return backup_init_ts; }
+        const VecDf &getBackupInitTimes() const { return backup_init_t_vec; }
+        const vec_Vec3f &getBackupInitPoints() const { return backup_init_ps; }
+        const Polytope &getBackupSfc() const { return backup_sfc; }
+
         void visualize(ros_interface::RosInterface::Ptr &viz_ptr) {
             viz_ptr->vizReplanLog(exp_traj, backup_traj, exp_yaw_traj, backup_yaw_traj, exp_sfc, backup_sfc, pc_for_sfc,
                                   ret_code);

@@ -246,10 +246,36 @@ PYBIND11_MODULE(super_planner_py, m) {
              d["yaw"] = trajectoryToDict(self.get_yaw_trajectory());
              return d;
            })
+      .def("get_replan_trajectories",
+           [](PlannerSession& self) {
+             py::dict result;
+             result["exp"] = trajectoryToDict(self.get_last_exp_trajectory());
+             result["backup"] = trajectoryToDict(self.get_last_backup_trajectory());
+             return result;
+           })
       .def("sample_command",
            [](PlannerSession& self, double time_s) { return commandToDict(self.sample_command(time_s)); },
            py::arg("time_s"))
       .def("reset", &PlannerSession::reset, py::arg("clear_map") = false)
+      .def("get_replan_debug",
+           [](PlannerSession& self) {
+             const auto debug = self.get_replan_debug();
+             py::dict result;
+             result["reference_path"] = debug.reference_path;
+             result["init_times"] = debug.init_times;
+             result["init_points"] = debug.init_points;
+             result["corridors"] = debug.corridors;
+             result["corridor_ellipsoids"] = debug.corridor_ellipsoids;
+             result["overlap_dead_radii"] = debug.overlap_dead_radii;
+             result["backup_init_ts"] = debug.backup_init_ts;
+             result["backup_init_times"] = debug.backup_init_times;
+             result["backup_init_points"] = debug.backup_init_points;
+             result["backup_corridor"] = debug.backup_corridor;
+             result["backup_vertices"] = debug.backup_vertices;
+             result["backup_seed_line"] = debug.backup_seed_line;
+             return result;
+           })
       .def("get_debug_state",
            [](PlannerSession& self) { return diagnosticsToDict(self.get_debug_state()); });
+
 }

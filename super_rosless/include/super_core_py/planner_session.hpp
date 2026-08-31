@@ -73,6 +73,21 @@ struct PositionCommand {
   bool trajectory_finished{true};
 };
 
+struct ReplanDebug {
+  std::vector<std::array<double, 3>> reference_path;
+  std::vector<double> init_times;
+  std::vector<std::array<double, 3>> init_points;
+  std::vector<std::vector<std::array<double, 4>>> corridors;
+  std::vector<std::array<double, 12>> corridor_ellipsoids;
+  std::vector<double> overlap_dead_radii;
+  double backup_init_ts{};
+  std::vector<double> backup_init_times;
+  std::vector<std::array<double, 3>> backup_init_points;
+  std::vector<std::array<double, 4>> backup_corridor;
+  std::vector<std::array<double, 3>> backup_vertices;
+  std::array<double, 6> backup_seed_line{};
+};
+
 struct Diagnostics {
   std::string fsm_state;
   bool has_goal{false};
@@ -98,7 +113,10 @@ class PlannerSession {
   PositionCommand sample_command(double time_s);
   geometry_utils::Trajectory get_position_trajectory() const;
   geometry_utils::Trajectory get_yaw_trajectory() const;
+  geometry_utils::Trajectory get_last_exp_trajectory();
+  geometry_utils::Trajectory get_last_backup_trajectory();
   Diagnostics get_debug_state() const;
+  ReplanDebug get_replan_debug();
   void reset(bool clear_map = false);
 
  private:

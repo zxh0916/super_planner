@@ -279,6 +279,65 @@ geometry_utils::Trajectory PlannerSession::get_yaw_trajectory() const {
   return planner_ptr_->getCommittedYawTrajectory();
 }
 
+geometry_utils::Trajectory PlannerSession::get_last_exp_trajectory() {
+  return planner_ptr_->getLatestReplanLog().getExpTraj();
+}
+
+geometry_utils::Trajectory PlannerSession::get_last_backup_trajectory() {
+  return planner_ptr_->getLatestReplanLog().getBackupTraj();
+}
+
+ReplanDebug PlannerSession::get_replan_debug() {
+  ReplanDebug result;
+  const auto log = planner_ptr_->getLatestReplanLog();
+  for (const auto &point : log.getReferencePath()) {
+    result.reference_path.push_back({point.x(), point.y(), point.z()});
+  }
+  const auto &times = log.getExpInitTimes();
+  result.init_times.assign(times.data(), times.data() + times.size());
+  for (const auto &point : log.getExpInitPoints()) {
+    result.init_points.push_back({point.x(), point.y(), point.z()});
+  }
+  for (const auto &polytope : log.getExpSfc()) {
+    std::vector<std::array<double, 4>> corridor;
+    const auto &planes = polytope.GetPlanes();
+    corridor.reserve(planes.rows());
+    for (Eigen::Index row = 0; row < planes.rows(); ++row) {
+      corridor.push_back({planes(row, 0), planes(row, 1), planes(row, 2), planes(row, 3)});
+    }
+    result.corridors.push_back(std::move(corridor));
+    const auto shape = polytope.ellipsoid_.C();
+    const auto center = polytope.ellipsoid_.d();
+    result.corridor_ellipsoids.push_back({shape(0,0), shape(0,1), shape(0,2),
+                                          shape(1,0), shape(1,1), shape(1,2),
+                                          shape(2,0), shape(2,1), shape(2,2),
+                                          center.x(), center.y(), center.z()});
+  }
+  result.backup_init_ts = log.getBackupInitTs();
+  const auto &backup_times = log.getBackupInitTimes();
+  result.backup_init_times.assign(backup_times.data(), backup_times.data() + backup_times.size());
+  for (const auto &point : log.getBackupInitPoints()) result.backup_init_points.push_back({point.x(), point.y(), point.z()});
+  const auto backup_polytope = log.getBackupSfc();
+  result.backup_seed_line = {backup_polytope.seed_line.first.x(), backup_polytope.seed_line.first.y(), backup_polytope.seed_line.first.z(), backup_polytope.seed_line.second.x(), backup_polytope.seed_line.second.y(), backup_polytope.seed_line.second.z()};
+  const auto backup_planes = backup_polytope.GetPlanes();
+  for (Eigen::Index row = 0; row < backup_planes.rows(); ++row) result.backup_corridor.push_back({backup_planes(row,0),backup_planes(row,1),backup_planes(row,2),backup_planes(row,3)});
+  Eigen::Matrix3Xd backup_vertices;
+  if (geometry_utils::enumerateVs(backup_planes, backup_vertices)) {
+    for (Eigen::Index column = 0; column < backup_vertices.cols(); ++column) result.backup_vertices.push_back({backup_vertices(0,column),backup_vertices(1,column),backup_vertices(2,column)});
+  }
+  const auto &sfcs = log.getExpSfc();
+  for (std::size_t index = 0; index + 1 < sfcs.size(); ++index) {
+    const auto left = sfcs[index].GetPlanes();
+    const auto right = sfcs[index + 1].GetPlanes();
+    Eigen::MatrixX4d overlap(left.rows() + right.rows(), 4);
+    overlap.topRows(left.rows()) = left;
+    overlap.bottomRows(right.rows()) = right;
+    Vec3f interior;
+    result.overlap_dead_radii.push_back(geometry_utils::findInteriorDist(overlap, interior) / 2.0);
+  }
+  return result;
+}
+
 Diagnostics PlannerSession::get_debug_state() const {
   Diagnostics d;
   d.fsm_state = stateName(machine_state_);
