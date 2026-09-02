@@ -76,6 +76,17 @@ namespace super_planner {
         std::mutex drone_state_mutex_;
         std::mutex replan_lock_;
 
+        std::string last_failure_stage_;
+        std::string last_failure_code_;
+        int last_failure_internal_ret_code_{super_utils::SUCCESS};
+        double last_failure_elapsed_ms_{0.0};
+
+        void clearFailureDiagnostic();
+        void setFailureDiagnostic(const std::string &stage,
+                                  const std::string &code,
+                                  int internal_ret_code,
+                                  double elapsed_ms = 0.0);
+
         Vec3f local_start_p_;
 
         bool robot_on_backup_traj_{false};
@@ -144,6 +155,22 @@ namespace super_planner {
         ReplanOnce(const Vec3f &goal_p,
                    const double &goal_yaw,
                    const bool &new_goal);
+
+        const std::string &getLastFailureStage() const {
+            return last_failure_stage_;
+        }
+
+        const std::string &getLastFailureCode() const {
+            return last_failure_code_;
+        }
+
+        int getLastFailureInternalRetCode() const {
+            return last_failure_internal_ret_code_;
+        }
+
+        double getLastFailureElapsedMs() const {
+            return last_failure_elapsed_ms_;
+        }
 
     private:
         RET_CODE generateExpTraj(ExpTraj &last_exp_traj_info,

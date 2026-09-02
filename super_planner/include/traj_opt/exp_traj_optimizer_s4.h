@@ -56,6 +56,7 @@ namespace traj_opt {
         std::ofstream failed_traj_log;
         std::ofstream penalty_log;
         ros_interface::RosInterface::Ptr ros_ptr_;
+        std::string last_failure_code_;
 
         struct OptimizationVariables {
             double rho;
@@ -339,6 +340,10 @@ namespace traj_opt {
         void getInitValue(VecDf &ts, vec_Vec3f &ps) const {
             ts = opt_vars.init_ts;
             ps = opt_vars.init_ps;
+        }
+
+        const std::string &getLastFailureCode() const {
+            return last_failure_code_;
         }
 
         bool optimize(const StatePVAJ &headPVAJ, const StatePVAJ &tailPVAJ,

@@ -184,6 +184,11 @@ StepResult PlannerSession::step(double time_s) {
         latest_message_ = "plan from rest succeeded";
       } else {
         latest_message_ = "plan from rest failed";
+        result.failure_stage = planner_ptr_->getLastFailureStage();
+        result.failure_code = planner_ptr_->getLastFailureCode();
+        result.failure_internal_ret_code =
+            planner_ptr_->getLastFailureInternalRetCode();
+        result.failure_elapsed_ms = planner_ptr_->getLastFailureElapsedMs();
       }
       break;
     }

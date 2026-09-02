@@ -57,6 +57,10 @@ struct StepResult {
   bool trajectory_finished{false};
   bool used_backup{false};
   std::string message;
+  std::string failure_stage;
+  std::string failure_code;
+  int failure_internal_ret_code{super_utils::SUCCESS};
+  double failure_elapsed_ms{0.0};
 };
 
 struct PositionCommand {

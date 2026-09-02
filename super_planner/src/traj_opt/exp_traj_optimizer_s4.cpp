@@ -623,6 +623,7 @@ double ExpTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
 
     /* 2) check the initial value of the optimization varibles */
     if (opt_vars.times.minCoeff() < 1e-3) {
+        last_failure_code_ = "initial_time_below_minimum";
         cout << YELLOW << " -- [TrajOpt] Error, the init times have zero, force return." << RESET << endl;
         cout << " -- Head PVAJ: " << endl;
         cout << opt_vars.headPVAJ << endl;
@@ -730,6 +731,21 @@ double ExpTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
             cout << "\tOptimized Time: " << opt_vars.times.transpose() << endl;
         }
         ros_ptr_->warn(" -- [ExpOpt] Opt failed, Omg or thr or Pos violation.");
+        const bool position_violation =
+                cfg_.penna_pos > 0 && opt_vars.penalty_log(1) > 0.2;
+        const bool acceleration_violation =
+                cfg_.penna_acc > 0 &&
+                opt_vars.penalty_log(3) > cfg_.max_acc * cfg_.penna_margin;
+        if (position_violation && acceleration_violation) {
+            last_failure_code_ =
+                    "optimized_position_and_acceleration_penalty_violation";
+        } else if (position_violation) {
+            last_failure_code_ = "optimized_position_penalty_violation";
+        } else if (acceleration_violation) {
+            last_failure_code_ = "optimized_acceleration_penalty_violation";
+        } else {
+            last_failure_code_ = "optimized_other_penalty_violation";
+        }
         ret = -1;
     }
 
@@ -751,6 +767,9 @@ double ExpTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
         opt_vars.minco.setParameters(opt_vars.points, opt_vars.times);
         opt_vars.minco.getTrajectory(traj);
     } else {
+        if (last_failure_code_ == "optimizer_unknown_failure") {
+            last_failure_code_ = "lbfgs_negative_return_" + std::to_string(ret);
+        }
         traj.clear();
         minCostFunctional = INFINITY;
         cout << YELLOW << " -- [MINCO] TrajOpt failed, " << lbfgs::lbfgs_strerror(ret) << RESET << endl;
@@ -869,19 +888,23 @@ bool ExpTrajOpt::optimize(const StatePVAJ &headPVAJ, const StatePVAJ &tailPVAJ,
                           const vec_E<Vec3f> &guide_path, const vector<double> &guide_t,
                           PolytopeVec &sfcs,
                           Trajectory &out_traj) {
+    last_failure_code_ = "optimizer_unknown_failure";
     /// Check if hot init is valid
     if (guide_path.size() != guide_t.size()) {
+        last_failure_code_ = "guide_timestamp_mismatch";
         cout << YELLOW << " -- [TrajOpt] Error, the guide trajectory has wrong path and time stamp." << RESET
              << endl;
         return false;
     }
     /// Check if SFC is valid
     if (sfcs.empty()) {
+        last_failure_code_ = "sfc_empty";
         cout << YELLOW << " -- [TrajOpt] Error, the SFC is empty." << RESET << endl;
         return false;
     }
 
     if (!SimplifySFC(headPVAJ.col(0), tailPVAJ.col(0), sfcs)) {
+        last_failure_code_ = "simplify_sfc_failed";
         cout << YELLOW << " -- [TrajOpt] Cannot simplify sfcs." << RESET << endl;
         return false;
     }
@@ -904,6 +927,7 @@ bool ExpTrajOpt::optimize(const StatePVAJ &headPVAJ, const StatePVAJ &tailPVAJ,
     }
 
     if (!setupProblemAndCheck()) {
+        last_failure_code_ = "corridor_preprocess_failed";
         cout << YELLOW << " -- [SUPER] Minco corridor preprocess error." << RESET << endl;
         success = false;
     }
@@ -912,6 +936,9 @@ bool ExpTrajOpt::optimize(const StatePVAJ &headPVAJ, const StatePVAJ &tailPVAJ,
 
 
     if (success && std::isinf(optimize(out_traj, cfg_.opt_accuracy))) {
+        if (last_failure_code_ == "optimizer_unknown_failure") {
+            last_failure_code_ = "lbfgs_nonfinite";
+        }
         cout << YELLOW << " -- [SUPER] Minco exp_traj opt failed." << RESET << endl;
         success = false;
     }
@@ -919,6 +946,7 @@ bool ExpTrajOpt::optimize(const StatePVAJ &headPVAJ, const StatePVAJ &tailPVAJ,
     penalty_log << opt_vars.penalty_log.transpose() << endl;
 
     if (success) {
+        last_failure_code_.clear();
         out_traj.start_WT = ros_ptr_->getSimTime();
     }
 
