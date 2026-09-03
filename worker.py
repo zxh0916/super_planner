@@ -21,8 +21,15 @@ GOAL_UPDATE_YAW_RAD = 0.03
 
 
 def _load_super_module():
+    try:
+        import super_planner_py as super  # type: ignore
+
+        return super
+    except ModuleNotFoundError:
+        pass
+
+    sys.path.insert(0, str(SUPER_ROOT))
     sys.path.insert(0, str(SUPER_BUILD))
-    sys.path.insert(1, str(SUPER_ROOT))
     import super_planner_py as super  # type: ignore
 
     return super
@@ -49,10 +56,8 @@ def _request_point_cloud(request: dict) -> np.ndarray | None:
     return np.asarray(value, dtype=np.float64).reshape(-1, 3)
 
 
-def _fallback_command(
-    state: dict, reason: str, diagnostics: dict | None = None
-) -> dict:
-    result = {
+def _fallback_command(state: dict, reason: str) -> dict:
+    return {
         "ok": False,
         "message": reason,
         "trajectory_points": [],
@@ -65,25 +70,6 @@ def _fallback_command(
             "angular_velocity": [0.0, 0.0, 0.0],
             "trajectory_finished": True,
         },
-    }
-    if diagnostics:
-        result.update(diagnostics)
-    return result
-
-
-def _step_failure_diagnostics(step_result: dict | None) -> dict:
-    value = step_result or {}
-    return {
-        "failure_stage": str(
-            value.get("failure_stage") or "plan_from_rest"
-        ),
-        "failure_code": str(
-            value.get("failure_code") or "unknown_internal_failure"
-        ),
-        "failure_internal_ret_code": int(
-            value.get("failure_internal_ret_code", value.get("ret_code", -1))
-        ),
-        "failure_elapsed_ms": float(value.get("failure_elapsed_ms", 0.0)),
     }
 
 
@@ -346,7 +332,6 @@ def main() -> None:
             point_cloud_required = bool(request.get("point_cloud_required", False))
             trajectory_debug = bool(request.get("trajectory_debug", True))
             periodic_replan = replan_dt > 0.0
-            trajectory_updated = False
 
             should_step = (
                 force_reset
@@ -407,23 +392,7 @@ def main() -> None:
                                 continue
                         else:
                             has_goal = False
-                            _send_msg(
-                                args.write_fd,
-                                _fallback_command(
-                                    state,
-                                    message,
-                                    {
-                                        "failure_stage": "goal_validation",
-                                        "failure_code": (
-                                            "goal_invalid_or_occupied"
-                                            if "occupied" in message
-                                            else "goal_rejected"
-                                        ),
-                                        "failure_internal_ret_code": -1,
-                                        "failure_elapsed_ms": 0.0,
-                                    },
-                                ),
-                            )
+                            _send_msg(args.write_fd, _fallback_command(state, message))
                             continue
                     else:
                         has_goal = True
@@ -433,31 +402,20 @@ def main() -> None:
                         has_trajectory = False
 
                 message = ""
-                last_step_result = None
                 # The ROS-less FSM first consumes the new goal, then generates
                 # a trajectory on a later tick. Drive a few ticks synchronously
                 # so a freshly reset episode can move immediately.
                 for i in range(6 if not has_trajectory else 1):
                     step_time = time_s + i * max(replan_dt, dt)
                     step_result = planner.step(step_time)
-                    last_step_result = step_result
                     message = str(step_result.get("message", ""))
-                    new_trajectory = bool(step_result.get("new_trajectory", False))
-                    trajectory_updated = trajectory_updated or new_trajectory
-                    has_trajectory = has_trajectory or new_trajectory
+                    has_trajectory = has_trajectory or bool(step_result.get("new_trajectory", False))
                     last_step_time = step_time
                     if has_trajectory:
                         break
 
                 if not has_trajectory:
-                    _send_msg(
-                        args.write_fd,
-                        _fallback_command(
-                            state,
-                            message or "planner has no trajectory",
-                            _step_failure_diagnostics(last_step_result),
-                        ),
-                    )
+                    _send_msg(args.write_fd, _fallback_command(state, message or "planner has no trajectory"))
                     continue
 
             if not has_trajectory:
@@ -465,18 +423,6 @@ def main() -> None:
                 continue
 
             command = planner.sample_command(time_s + dt)
-            if not trajectory_updated:
-                _send_msg(
-                    args.write_fd,
-                    {
-                        "ok": True,
-                        "trajectory": None,
-                        "trajectory_unchanged": True,
-                        "trajectory_points": [],
-                        "command": command,
-                    },
-                )
-                continue
             trajectory = planner.get_trajectory()
             if (
                 not trajectory_debug

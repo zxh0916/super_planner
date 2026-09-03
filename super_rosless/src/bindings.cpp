@@ -124,10 +124,6 @@ py::dict stepToDict(const super_core_py::StepResult& r) {
   d["trajectory_finished"] = r.trajectory_finished;
   d["used_backup"] = r.used_backup;
   d["message"] = r.message;
-  d["failure_stage"] = r.failure_stage;
-  d["failure_code"] = r.failure_code;
-  d["failure_internal_ret_code"] = r.failure_internal_ret_code;
-  d["failure_elapsed_ms"] = r.failure_elapsed_ms;
   return d;
 }
 

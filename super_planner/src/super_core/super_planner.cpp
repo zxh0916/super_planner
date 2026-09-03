@@ -25,28 +25,10 @@
 #include <memory>
 #include <super_utils/scope_timer.hpp>
 #include <fmt/color.h>
-#include <chrono>
 
 using namespace super_utils;
 
 namespace super_planner {
-    void SuperPlanner::clearFailureDiagnostic() {
-        last_failure_stage_.clear();
-        last_failure_code_.clear();
-        last_failure_internal_ret_code_ = super_utils::SUCCESS;
-        last_failure_elapsed_ms_ = 0.0;
-    }
-
-    void SuperPlanner::setFailureDiagnostic(const std::string &stage,
-                                            const std::string &code,
-                                            int internal_ret_code,
-                                            double elapsed_ms) {
-        last_failure_stage_ = stage;
-        last_failure_code_ = code;
-        last_failure_internal_ret_code_ = internal_ret_code;
-        last_failure_elapsed_ms_ = elapsed_ms;
-    }
-
     SuperPlanner::SuperPlanner
             (const std::string &cfg_path,
              const ros_interface::RosInterface::Ptr &ros_ptr,
@@ -88,19 +70,11 @@ namespace super_planner {
                                const double &goal_yaw,
                                const bool &new_goal) {
         std::lock_guard<std::mutex> guard(replan_lock_);
-        clearFailureDiagnostic();
-        const auto plan_started = std::chrono::steady_clock::now();
-        const auto elapsed_ms = [&plan_started]() {
-            return std::chrono::duration<double, std::milli>(
-                    std::chrono::steady_clock::now() - plan_started).count();
-        };
         latest_replan.reset();
         latest_replan.setGoal(goal_p, goal_yaw, robot_state_);
         if (robot_state_.rcv == false) {
             ros_ptr_->warn(" -- [SUPER] in [PlanFromRest]: No odom, force return.");
             latest_replan.setRetCode(SUPER_RET_CODE::SUPER_NO_ODOM);
-            setFailureDiagnostic("plan_from_rest", "no_odom",
-                                 SUPER_RET_CODE::SUPER_NO_ODOM, elapsed_ms());
             return FAILED;
         }
         gi_.goal_p = goal_p;
@@ -122,9 +96,6 @@ namespace super_planner {
             ros_ptr_->error(
                     " -- [SUPER] in [PlanFromRest] Local start point is deeply occupied, which should not happened.");
             latest_replan.setRetCode(SUPER_RET_CODE::SUPER_NO_START_POINT);
-            setFailureDiagnostic("plan_from_rest", "no_start_point",
-                                 SUPER_RET_CODE::SUPER_NO_START_POINT,
-                                 elapsed_ms());
             return FAILED;
         }
         latest_replan.setLocalStartP(local_star_pt);
@@ -137,15 +108,6 @@ namespace super_planner {
         RET_CODE exp_ret_code = generateExpTraj(last_exp_traj_info_, exp_traj_info);
         //GenerateRestToRestExpTraj(local_star_pt, exp_traj_info);
         if (exp_ret_code == FAILED) {
-            if (last_failure_stage_.empty()) {
-                setFailureDiagnostic(
-                        "expected_trajectory",
-                        "unknown_internal_failure",
-                        exp_ret_code,
-                        elapsed_ms());
-            } else {
-                last_failure_elapsed_ms_ = elapsed_ms();
-            }
             ros_ptr_->warn(" -- [SUPER] in [PlanFromRest] GenerateExpTrajectory failed with {}.",
                            RET_CODE_STR[exp_ret_code].c_str());
             return FAILED;
@@ -195,8 +157,6 @@ namespace super_planner {
         }
         ros_ptr_->warn(" -- [SUPER] in [PlanFromRest] generateBackupTrajectory return [{}], force return",
                        RET_CODE_STR[back_ret_code].c_str());
-        setFailureDiagnostic("backup_trajectory", "backup_trajectory_failed",
-                             back_ret_code, elapsed_ms());
         return FAILED;
     }
 
@@ -677,12 +637,10 @@ namespace super_planner {
 //                }
                 if (!PathSearch(guide_path.back(), gi_.goal_p, temp_horizon, new_path)) {
                     ros_ptr_->warn(" -- [SUPER] PathSearch for new path failed");
-                    setFailureDiagnostic("guide_path", "guide_path_or_astar_failed", FAILED);
                     return FAILED;
                 }
                 if (new_path.size() < 2) {
                     ros_ptr_->warn(" -- [SUPER] PathSearch for new path failed");
-                    setFailureDiagnostic("guide_path", "guide_path_too_short", FAILED);
                     return FAILED;
                 }
 
@@ -751,7 +709,6 @@ namespace super_planner {
 
         if (!bool_ret_code) {
             ros_ptr_->warn(" -- [SUPER] SearchPolytopeOnPath for new path failed");
-            setFailureDiagnostic("safe_corridor", "safe_corridor_failed", FAILED);
             return FAILED;
         }
         {
@@ -774,11 +731,6 @@ namespace super_planner {
         }
 
         // optimize and update exp traj
-        if (last_exp_traj_info.empty() && cfg_.rest_initial_time_scale > 1.0) {
-            for (double &stamp: guide_stamp) {
-                stamp *= cfg_.rest_initial_time_scale;
-            }
-        }
         bool temp_ret;
         Trajectory out_traj;
         TimeConsuming t_exp_opt("t_exp_opt", false);
@@ -798,21 +750,11 @@ namespace super_planner {
         }
         if (!temp_ret) {
             ros_ptr_->warn(" -- [SUPER] OptimizationExpTrajInPolytopes for new path failed");
-            setFailureDiagnostic(
-                    "expected_trajectory_optimization",
-                    exp_traj_opt_->getLastFailureCode().empty()
-                    ? "expected_trajectory_optimization_failed"
-                    : exp_traj_opt_->getLastFailureCode(),
-                    FAILED);
             return FAILED;
         }
         double replan_total_t = (ros_ptr_->getSimTime() - replan_process_start_WT);
         if (replan_total_t > cfg_.replan_forward_dt) {
             ros_ptr_->warn(" -- [SUPER] Replan over time({})!!!! Return FAILED", replan_total_t);
-            setFailureDiagnostic(
-                    "expected_trajectory_optimization",
-                    "expected_trajectory_replan_overtime",
-                    FAILED);
             return FAILED;
         }
 
@@ -830,10 +772,6 @@ namespace super_planner {
             !guide_pos_traj.getPartialTrajectoryByTime(replan_process_start_TT, replan_state_TT,
                                                        temp_exp_traj)) {
             ros_ptr_->error(" -- [SUPER] in [generateExpTraj]: getPartialTrajectoryByTime failed, force return");
-            setFailureDiagnostic(
-                    "expected_trajectory_assembly",
-                    "position_partial_trajectory_failed",
-                    FAILED);
             return FAILED;
         }
         out_exp_traj_info.setSFC(sfc);
@@ -844,10 +782,6 @@ namespace super_planner {
             StatePVAJ yaw_replan_state;
             if (!guide_yaw_traj.getState(replan_state_TT, yaw_replan_state)) {
                 ros_ptr_->warn(" -- [SUPER] Invalid traj or eval t");
-                setFailureDiagnostic(
-                        "expected_trajectory_assembly",
-                        "yaw_replan_state_failed",
-                        FAILED);
                 return FAILED;
             }
             init_yaw = yaw_replan_state.row(0);
@@ -863,20 +797,12 @@ namespace super_planner {
 
         if (!yaw_traj_opt_->optimize(init_yaw, fina_yaw, out_traj, new_traj, 3, false, free_end)) {
             ros_ptr_->error(" -- [SUPER] in [generateExpTraj]: YawTrajOpt failed, force return");
-            setFailureDiagnostic(
-                    "expected_trajectory_optimization",
-                    "yaw_trajectory_optimization_failed",
-                    FAILED);
             return FAILED;
         }
         if (!last_exp_traj_info.empty()) {
             if (!guide_yaw_traj.getPartialTrajectoryByTime(replan_process_start_TT, replan_state_TT,
                                                            old_traj)) {
                 ros_ptr_->error(" -- [SUPER] in [generateExpTraj]: getPartialTrajectoryByTime failed, force return");
-                setFailureDiagnostic(
-                        "expected_trajectory_assembly",
-                        "yaw_partial_trajectory_failed",
-                        FAILED);
                 return FAILED;
             }
         }
