@@ -193,19 +193,20 @@ StepResult PlannerSession::step(double time_s) {
       double start_wt = 0.0;
       planner_ptr_->getOneHeartbeatTime(start_wt, traj_finish);
       result.trajectory_finished = traj_finish;
-      if (finish_plan_ || traj_finish) {
+      if (finish_plan_ || (traj_finish && !goal_.new_goal)) {
         finish_plan_ = true;
         machine_state_ = MachineState::WAIT_GOAL;
         latest_message_ = "trajectory finished";
         break;
       }
-      if (plan_from_rest_) {
+      if (plan_from_rest_ && !goal_.new_goal) {
         plan_from_rest_ = false;
         result.success = true;
         latest_message_ = "skip immediate replan after plan from rest";
         break;
       }
-      if (last_replan_time_ < 0.0 || time_s - last_replan_time_ >= 1.0 / std::max(1e-6, fsm_cfg_.replan_rate)) {
+      if (goal_.new_goal || last_replan_time_ < 0.0 ||
+          time_s - last_replan_time_ >= 1.0 / std::max(1e-6, fsm_cfg_.replan_rate)) {
         Vec3f safe_goal = goal_.goal_p;
         map_ptr_->getNearestInfCellNot(super_utils::OCCUPIED, safe_goal, safe_goal, 3.0);
         const auto ret = planner_ptr_->ReplanOnce(safe_goal, goal_.goal_yaw, goal_.new_goal);
@@ -219,6 +220,9 @@ StepResult PlannerSession::step(double time_s) {
         } else if (ret == super_utils::NEW_TRAJ) {
           machine_state_ = MachineState::GENERATE_TRAJ;
           latest_message_ = "replan requested new trajectory";
+        } else if (ret == super_utils::NO_NEED && goal_.new_goal) {
+          machine_state_ = MachineState::GENERATE_TRAJ;
+          latest_message_ = "new goal waits for plan from rest";
         } else if (ret == super_utils::SUCCESS || ret == super_utils::FINISH ||
                    ret == super_utils::NO_NEED) {
           goal_.new_goal = false;
