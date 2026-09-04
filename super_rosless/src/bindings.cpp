@@ -276,6 +276,7 @@ PYBIND11_MODULE(super_planner_py, m) {
              return result;
            })
       .def("get_debug_state",
-           [](PlannerSession& self) { return diagnosticsToDict(self.get_debug_state()); });
+           [](PlannerSession& self) { return diagnosticsToDict(self.get_debug_state()); })
+      .def("get_module_timings", &PlannerSession::get_module_timings);
 
 }

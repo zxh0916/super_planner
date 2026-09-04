@@ -69,6 +69,7 @@ add_library(super_rosless_core STATIC
   ${SUPER_SOURCES}
   src/planner_session.cpp
 )
+target_link_libraries(super_rosless_core PUBLIC Eigen3::Eigen)
 
 target_include_directories(super_rosless_core PUBLIC
   "${CMAKE_CURRENT_LIST_DIR}/include"
@@ -85,7 +86,7 @@ target_compile_options(super_rosless_core PRIVATE
 )
 
 pybind11_add_module(super_planner_py src/bindings.cpp)
-target_link_libraries(super_planner_py PRIVATE super_rosless_core)
+target_link_libraries(super_planner_py PRIVATE super_rosless_core Eigen3::Eigen)
 target_include_directories(super_planner_py PRIVATE
   "${CMAKE_CURRENT_LIST_DIR}/include"
   "${REPO_ROOT}/super_planner/include"

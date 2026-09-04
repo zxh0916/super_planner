@@ -70,6 +70,7 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
     // const double weightAtt = penaltyWeights[4];
     const double weightOmg = penaltyWeights[5];
     const double weightAccThr = penaltyWeights[6];
+    const bool needsSnap = weightJer > 0 || (weightOmg > 0 && weightAccThr > 0);
 
 
     Eigen::Vector3d pos, vel, acc, jer, sna;
@@ -92,17 +93,11 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
     double node, pena;
     const auto pieceNum = T.size();
     const double integralFrac = 1.0 / integralResolution;
-    double pos_penna_log = 0.0;
     double max_pos_viola_log = 0.0;
-    double vel_penna_log = 0.0;
     double max_vel_viola_log = 0.0;
-    double acc_penna_log = 0.0;
     double max_acc_viola_log = 0.0;
-    double jer_penna_log = 0.0;
     double max_jer_viola_log = 0.0;
-    double omg_penna_log = 0.0;
     double max_omg_viola_log = 0.0;
-    double thr_penna_log = 0.0;
     double max_thr_viola_log = 0.0;
 
     for (int i = 0; i < pieceNum; i++) {
@@ -121,13 +116,17 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
             beta1 << 0.0, 1.0, 2.0 * s1, 3.0 * s2, 4.0 * s3, 5.0 * s4, 6.0 * s5, 7.0 * s6;
             beta2 << 0.0, 0.0, 2.0, 6.0 * s1, 12.0 * s2, 20.0 * s3, 30.0 * s4, 42.0 * s5;
             beta3 << 0.0, 0.0, 0.0, 6.0, 24.0 * s1, 60.0 * s2, 120.0 * s3, 210.0 * s4;
-            beta4 << 0.0, 0.0, 0.0, 0.0, 24.0, 120.0 * s1, 360.0 * s2, 840.0 * s3;
+            if (needsSnap) {
+                beta4 << 0.0, 0.0, 0.0, 0.0, 24.0, 120.0 * s1, 360.0 * s2, 840.0 * s3;
+            }
 //            beta5 << 0.0, 0.0, 0.0, 0., 0.0, 120.0, 720.0 * s1, 2520.0 * s2;
             pos = c.transpose() * beta0;
             vel = c.transpose() * beta1;
             acc = c.transpose() * beta2;
             jer = c.transpose() * beta3;
-            sna = c.transpose() * beta4;
+            if (needsSnap) {
+                sna = c.transpose() * beta4;
+            }
 
             const auto K = hPoly.rows();
 
@@ -150,7 +149,6 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
                     if (gcopter::smoothedL1(violaPos, smoothFactor, violaPosPena, violaPosPenaD)) {
                         gradPos += weightPos * violaPosPenaD * outerNormal;
                         pena += weightPos * violaPosPena;
-                        pos_penna_log += weightPos * violaPosPena;
                     }
                 }
             }
@@ -158,19 +156,16 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
             if (weightVel > 0 && gcopter::smoothedL1(violaVel, smoothFactor, violaVelPena, violaVelPenaD)) {
                 gradVel += weightVel * violaVelPenaD * 2.0 * vel;
                 pena += weightVel * violaVelPena;
-                vel_penna_log += weightVel * violaVelPena;
             }
 
             if (weightAcc > 0 && gcopter::smoothedL1(violaAcc, smoothFactor, violaAccPena, violaAccPenaD)) {
                 gradAcc += weightAcc * violaAccPenaD * 2.0 * acc;
                 pena += weightAcc * violaAccPena;
-                acc_penna_log += weightAcc * violaAccPena;
             }
 
             if (weightJer > 0 && gcopter::smoothedL1(violaJer, smoothFactor, violaJerPena, violaJerPenaD)) {
                 gradJer += weightJer * violaJerPenaD * 2.0 * jer;
                 pena += weightJer * violaJerPena;
-                jer_penna_log += weightJer * violaJerPena;
             }
 
             if (weightOmg > 0 && weightAccThr > 0) {
@@ -181,13 +176,11 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
                 if (gcopter::smoothedL1(violaOmg, smoothFactor, violaOmgPena, violaOmgPenaD)) {
                     gradOmg += weightOmg * violaOmgPenaD * 2.0 * omg;
                     pena += weightOmg * violaOmgPena;
-                    omg_penna_log += weightOmg * violaOmgPena;
                 }
 
                 if (gcopter::smoothedL1(violaThrust, smoothFactor, violaThrustPena, violaThrustPenaD)) {
                     gradThr += weightAccThr * violaThrustPenaD * 2.0 * (thr - thrustMean);
                     pena += weightAccThr * violaThrustPena;
-                    thr_penna_log += weightAccThr * violaThrustPena;
                 }
 
 //            if (smoothedL1(violaTheta, smoothFactor, violaThetaPena, violaThetaPenaD))
@@ -215,8 +208,10 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
                 if (violaVel > max_vel_viola_log) max_vel_viola_log = violaVel;
                 if (violaAcc > max_acc_viola_log) max_acc_viola_log = violaAcc;
                 if (violaJer > max_jer_viola_log) max_jer_viola_log = violaJer;
-                if (violaOmg > max_omg_viola_log) max_omg_viola_log = violaOmg;
-                if (violaThrust > max_thr_viola_log) max_thr_viola_log = violaThrust;
+                if (weightOmg > 0 && weightAccThr > 0) {
+                    if (violaOmg > max_omg_viola_log) max_omg_viola_log = violaOmg;
+                    if (violaThrust > max_thr_viola_log) max_thr_viola_log = violaThrust;
+                }
             }
 
             node = (j == 0 || j == integralResolution) ? 0.5 : 1.0;
@@ -226,10 +221,13 @@ void BackupTrajOpt::constraintsFunctional(const Eigen::VectorXd &T,
                                             beta2 * totalGradAcc.transpose() +
                                             beta3 * totalGradJer.transpose()) *
                                            node * step;
-            gradT(i) += (totalGradPos.dot(vel) +
-                         totalGradVel.dot(acc) +
-                         totalGradAcc.dot(jer) +
-                         totalGradJer.dot(sna)) *
+            double timeGradient = totalGradPos.dot(vel) +
+                                  totalGradVel.dot(acc) +
+                                  totalGradAcc.dot(jer);
+            if (needsSnap) {
+                timeGradient += totalGradJer.dot(sna);
+            }
+            gradT(i) += timeGradient *
                         alpha * node * step +
                         node * integralFrac * pena;
             cost += node * step * pena;
@@ -316,17 +314,15 @@ double BackupTrajOpt::costFunctional(void *ptr, const Eigen::VectorXd &x, Eigen:
                           cost, obj.partialGradByTimes, obj.partialGradByCoeffs,
                           obj.penalty_log);
 
-    StatePVAJ partGradOfHeadPVAJ, partGradOfTailPVAJ;
-    Mat3Df partGradOfWaypts;
     obj.minco.propagateGradOfWayptsAndState(obj.partialGradByCoeffs, obj.partialGradByTimes,
                                             obj.gradByTimes,
-                                            partGradOfHeadPVAJ,
-                                            partGradOfWaypts,
-                                            partGradOfTailPVAJ);
+                                            obj.partGradOfHeadPVAJ,
+                                            obj.partGradOfWaypts,
+                                            obj.partGradOfTailPVAJ);
     cost += weightT * obj.times.sum();
     obj.gradByTimes.array() += weightT;
-    obj.gradByPoints.leftCols(obj.piece_num - 1) = partGradOfWaypts;
-    obj.gradByPoints.rightCols(1) = partGradOfTailPVAJ.col(0);
+    obj.gradByPoints.leftCols(obj.piece_num - 1) = obj.partGradOfWaypts;
+    obj.gradByPoints.rightCols(1) = obj.partGradOfTailPVAJ.col(0);
 
     if (obj.uniform_time_en) {
         obj.gradByTotalT(0) = obj.gradByTimes.sum() / obj.times.size();
@@ -374,10 +370,10 @@ double BackupTrajOpt::costFunctional(void *ptr, const Eigen::VectorXd &x, Eigen:
 
         cost += weight_ts * (obj.max_ts - obj.ts);
         obj.gradTs =
-                partGradOfHeadPVAJ.col(0).dot(obj.exp_traj.getVel(obj.ts)) +
-                partGradOfHeadPVAJ.col(1).dot(obj.exp_traj.getAcc(obj.ts)) +
-                partGradOfHeadPVAJ.col(2).dot(obj.exp_traj.getJer(obj.ts)) +
-                partGradOfHeadPVAJ.col(3).dot(obj.exp_traj.getSnap(obj.ts)) +
+                obj.partGradOfHeadPVAJ.col(0).dot(obj.exp_traj.getVel(obj.ts)) +
+                obj.partGradOfHeadPVAJ.col(1).dot(obj.exp_traj.getAcc(obj.ts)) +
+                obj.partGradOfHeadPVAJ.col(2).dot(obj.exp_traj.getJer(obj.ts)) +
+                obj.partGradOfHeadPVAJ.col(3).dot(obj.exp_traj.getSnap(obj.ts)) +
                 -weight_ts;
 
         gcopter::propagateGradIntervalToInf(obj.min_ts, obj.max_ts, tau_s, obj.gradTs, gradTaus);

@@ -115,6 +115,9 @@ namespace traj_opt {
             // init_ps include the optimized fina p
             vec_Vec3f given_init_ps;
 
+            StatePVAJ partGradOfHeadPVAJ, partGradOfTailPVAJ;
+            Mat3Df partGradOfWaypts;
+
         } opt_vars{};
 
     private:
