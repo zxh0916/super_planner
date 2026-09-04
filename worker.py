@@ -329,12 +329,22 @@ def main() -> None:
             replan_dt = float(request["replan_dt"])
             target_change_min_dt = max(float(request.get("target_change_min_dt", 0.0)), 0.0)
             force_reset = bool(request.get("force_reset", False))
+            reject_cached_trajectory = bool(request.get("reject_cached_trajectory", False))
             point_cloud_required = bool(request.get("point_cloud_required", False))
             trajectory_debug = bool(request.get("trajectory_debug", True))
             periodic_replan = replan_dt > 0.0
+            target_arr = np.asarray(target, dtype=np.float64)
+            target_changed = (
+                last_goal_target is None
+                or not np.isfinite(last_goal_target).all()
+                or np.linalg.norm(target_arr - last_goal_target) > GOAL_UPDATE_DISTANCE_M
+                or _angle_abs_diff(target_yaw, last_goal_yaw) > GOAL_UPDATE_YAW_RAD
+            )
 
             should_step = (
                 force_reset
+                or reject_cached_trajectory
+                or target_changed
                 or (periodic_replan and not has_trajectory)
                 or (periodic_replan and time_s - last_step_time >= replan_dt - 1e-9)
             )
@@ -343,7 +353,7 @@ def main() -> None:
                 _send_msg(args.write_fd, {"ok": False, "need_point_cloud": True})
                 continue
 
-            if force_reset:
+            if force_reset or reject_cached_trajectory:
                 planner.reset(False)
                 has_goal = False
                 has_trajectory = False
@@ -364,14 +374,6 @@ def main() -> None:
                 if not bool(update_result.get("success", False)):
                     _send_msg(args.write_fd, _fallback_command(state, update_result.get("message", "sensing update failed")))
                     continue
-
-                target_arr = np.asarray(target, dtype=np.float64)
-                target_changed = (
-                    last_goal_target is None
-                    or not np.isfinite(last_goal_target).all()
-                    or np.linalg.norm(target_arr - last_goal_target) > GOAL_UPDATE_DISTANCE_M
-                    or _angle_abs_diff(target_yaw, last_goal_yaw) > GOAL_UPDATE_YAW_RAD
-                )
                 target_update_ready = (
                     force_reset
                     or not has_goal
