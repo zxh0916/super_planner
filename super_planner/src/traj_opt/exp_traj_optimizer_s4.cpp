@@ -82,6 +82,7 @@ void ExpTrajOpt::constraintsFunctional(const VecDf &T,
     const auto &weightAtt = penaltyWeights[4];
     const auto &weightOmg = penaltyWeights[5];
     const auto &weightAccThr = penaltyWeights[6];
+    const bool needsSnap = weightJer > 0 || (weightOmg > 0 && weightAccThr > 0);
 
     const auto &piece_num = T.size();
 
@@ -107,14 +108,19 @@ void ExpTrajOpt::constraintsFunctional(const VecDf &T,
             beta1 << 0.0, 1.0, 2.0 * s1, 3.0 * s2, 4.0 * s3, 5.0 * s4, 6.0 * s5, 7.0 * s6;
             beta2 << 0.0, 0.0, 2.0, 6.0 * s1, 12.0 * s2, 20.0 * s3, 30.0 * s4, 42.0 * s5;
             beta3 << 0.0, 0.0, 0.0, 6.0, 24.0 * s1, 60.0 * s2, 120.0 * s3, 210.0 * s4;
-            beta4 << 0.0, 0.0, 0.0, 0.0, 24.0, 120.0 * s1, 360.0 * s2, 840.0 * s3;
+            if (needsSnap) {
+                beta4 << 0.0, 0.0, 0.0, 0.0, 24.0, 120.0 * s1, 360.0 * s2, 840.0 * s3;
+            }
             //beta5 << 0.0, 0.0, 0.0, 0., 0.0, 120.0, 720.0 * s1, 2520.0 * s2;
 
             const Vec3f pos = c.transpose() * beta0;
             const Vec3f vel = c.transpose() * beta1;
             const Vec3f acc = c.transpose() * beta2;
             const Vec3f jer = c.transpose() * beta3;
-            const Vec3f sna = c.transpose() * beta4;
+            Vec3f sna;
+            if (needsSnap) {
+                sna = c.transpose() * beta4;
+            }
 
             double tmp_cost{0.0};
             Vec3f gradPos{0, 0, 0}, gradVel{0, 0, 0}, gradAcc{0, 0, 0}, gradJer{0, 0, 0};
@@ -229,10 +235,13 @@ void ExpTrajOpt::constraintsFunctional(const VecDf &T,
                                             beta2 * totalGradAcc.transpose() +
                                             beta3 * totalGradJer.transpose()) *
                                            node * step;
-            gradT(i) += (totalGradPos.dot(vel) +
-                         totalGradVel.dot(acc) +
-                         totalGradAcc.dot(jer) +
-                         totalGradJer.dot(sna)) *
+            double timeGradient = totalGradPos.dot(vel) +
+                                  totalGradVel.dot(acc) +
+                                  totalGradAcc.dot(jer);
+            if (needsSnap) {
+                timeGradient += totalGradJer.dot(sna);
+            }
+            gradT(i) += timeGradient *
                         alpha * node * step +
                         node * integralFrac * tmp_cost;
             cost += node * step * tmp_cost;
@@ -280,8 +289,8 @@ double ExpTrajOpt::costFunctional(void *ptr,
 
     /* 2) Reconstruct the optimization varibles */
 
-    Mat3Df points;
-    VecDf times;
+    Mat3Df &points = obj.points;
+    VecDf &times = obj.times;
     gcopter::forwardMapTauToT(tau, times);
     switch (pos_constraint_type) {
         case 1: {
@@ -298,8 +307,10 @@ double ExpTrajOpt::costFunctional(void *ptr,
     /* 3) Compute the energy const and gradient */
     double cost{0};
     obj.minco.setParameters(points, times);
-    MatD3f partialGradByCoeffs(8 * times.size(), 3);
-    VecDf partialGradByTimes(times.size());
+    MatD3f &partialGradByCoeffs = obj.partialGradByCoeffs;
+    VecDf &partialGradByTimes = obj.partialGradByTimes;
+    partialGradByCoeffs.resize(8 * times.size(), 3);
+    partialGradByTimes.resize(times.size());
     partialGradByCoeffs.setZero();
     partialGradByTimes.setZero();
     if (!block_energy_cost) {
@@ -319,8 +330,8 @@ double ExpTrajOpt::costFunctional(void *ptr,
                           cost, partialGradByTimes, partialGradByCoeffs, obj.penalty_log);
 
     /* 5) Propagate the gradient from CT to PT */
-    Mat3Df gradByPoints;
-    VecDf gradByTimes;
+    Mat3Df &gradByPoints = obj.gradByPoints;
+    VecDf &gradByTimes = obj.gradByTimes;
     obj.minco.propogateGrad(partialGradByCoeffs, partialGradByTimes,
                             gradByPoints, gradByTimes);
     cost += weightT * times.sum();
@@ -663,8 +674,6 @@ double ExpTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
     lbfgs_params.min_step = 1.0e-32;
     lbfgs_params.g_epsilon = 0.0;
     lbfgs_params.delta = relCostTol;
-    VecDf times_init = opt_vars.times;
-
     opt_vars.init_ts = opt_vars.times;
     opt_vars.init_ps.clear();
     for (int col = 0; col < opt_vars.points.cols(); col++) {
@@ -679,8 +688,6 @@ double ExpTrajOpt::optimize(Trajectory &traj, const double &relCostTol) {
         truncateToSixDecimals(opt_vars.waypoint_attractor(2, i));
     }
 
-    cout << std::fixed << std::setprecision(15);
-    auto x0 = x;
     // only for debug
 //    cout << " -- [ExpOpt] Start optimization." << x.transpose() << endl;
 //    cout << " -- [ExpOpt] minCostFunctional: " << minCostFunctional << endl;

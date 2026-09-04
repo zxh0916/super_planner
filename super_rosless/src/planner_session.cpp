@@ -351,6 +351,12 @@ Diagnostics PlannerSession::get_debug_state() const {
   return d;
 }
 
+std::vector<double> PlannerSession::get_module_timings() {
+  std::vector<double> timings;
+  planner_ptr_->getModuleTimeConsuming(timings);
+  return timings;
+}
+
 void PlannerSession::reset(bool clear_map) {
   goal_ = GoalInfo{};
   robot_state_ = rog_map::RobotState{};

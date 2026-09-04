@@ -7,6 +7,7 @@ import os
 import pickle
 import struct
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -173,40 +174,11 @@ def _read_exact(fd: int, n_bytes: int) -> bytes:
 
 def _recv_msg(fd: int):
     size = struct.unpack("!Q", _read_exact(fd, 8))[0]
-    return _restore_pickle_payload(pickle.loads(_read_exact(fd, size)))
-
-
-def _pickle_safe_payload(value):
-    if isinstance(value, np.ndarray):
-        arr = np.ascontiguousarray(value)
-        return {
-            "__diffaero_ndarray__": True,
-            "dtype": arr.dtype.str,
-            "shape": arr.shape,
-            "data": arr.tobytes(),
-        }
-    if isinstance(value, np.generic):
-        return value.item()
-    if isinstance(value, dict):
-        return {key: _pickle_safe_payload(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_pickle_safe_payload(item) for item in value]
-    return value
-
-
-def _restore_pickle_payload(value):
-    if isinstance(value, dict):
-        if value.get("__diffaero_ndarray__"):
-            arr = np.frombuffer(value["data"], dtype=np.dtype(value["dtype"]))
-            return arr.reshape(tuple(value["shape"])).copy()
-        return {key: _restore_pickle_payload(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_restore_pickle_payload(item) for item in value]
-    return value
+    return pickle.loads(_read_exact(fd, size))
 
 
 def _send_msg(fd: int, payload) -> None:
-    data = pickle.dumps(_pickle_safe_payload(payload), protocol=pickle.HIGHEST_PROTOCOL)
+    data = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
     for chunk in (struct.pack("!Q", len(data)), data):
         view = memoryview(chunk)
         while view:
@@ -281,6 +253,7 @@ def main() -> None:
         _send_msg(args.write_fd, {"ok": True, "shared_map_ready": True, "pid": os.getpid()})
     has_goal = False
     has_trajectory = False
+    trajectory_generation = 0
     last_step_time = -float("inf")
     last_goal_target: np.ndarray | None = None
     last_goal_yaw = float("nan")
@@ -331,6 +304,10 @@ def main() -> None:
             force_reset = bool(request.get("force_reset", False))
             point_cloud_required = bool(request.get("point_cloud_required", False))
             trajectory_debug = bool(request.get("trajectory_debug", True))
+            return_command = bool(request.get("return_command", True))
+            known_trajectory_generation = int(request.get("trajectory_generation", -1))
+            timing_enabled = bool(request.get("timing", False))
+            timing = {}
             periodic_replan = replan_dt > 0.0
 
             should_step = (
@@ -353,6 +330,7 @@ def main() -> None:
                 last_goal_set_time = -float("inf")
 
             if should_step:
+                sensing_started = time.perf_counter()
                 if point_cloud is not None:
                     map_result = planner.load_static_points(point_cloud, True)
                     if not bool(map_result.get("success", False)):
@@ -361,6 +339,8 @@ def main() -> None:
                     loaded_point_cloud_id = point_cloud_id
 
                 update_result = planner.update_sensing(state, time_s)
+                if timing_enabled:
+                    timing["sensing_s"] = time.perf_counter() - sensing_started
                 if not bool(update_result.get("success", False)):
                     _send_msg(args.write_fd, _fallback_command(state, update_result.get("message", "sensing update failed")))
                     continue
@@ -405,14 +385,42 @@ def main() -> None:
                 # The ROS-less FSM first consumes the new goal, then generates
                 # a trajectory on a later tick. Drive a few ticks synchronously
                 # so a freshly reset episode can move immediately.
+                solve_started = time.perf_counter()
+                generated_trajectory = False
                 for i in range(6 if not has_trajectory else 1):
                     step_time = time_s + i * max(replan_dt, dt)
                     step_result = planner.step(step_time)
                     message = str(step_result.get("message", ""))
-                    has_trajectory = has_trajectory or bool(step_result.get("new_trajectory", False))
+                    generated_trajectory = generated_trajectory or bool(
+                        step_result.get("new_trajectory", False)
+                        or step_result.get("used_backup", False)
+                    )
+                    has_trajectory = has_trajectory or generated_trajectory
                     last_step_time = step_time
                     if has_trajectory:
                         break
+                if generated_trajectory:
+                    trajectory_generation += 1
+                if timing_enabled:
+                    timing["solve_s"] = time.perf_counter() - solve_started
+                    module_timings = planner.get_module_timings()
+                    timing.update(
+                        dict(
+                            zip(
+                                (
+                                    "exp_frontend_s",
+                                    "exp_opt_s",
+                                    "generate_exp_s",
+                                    "backup_frontend_s",
+                                    "backup_opt_s",
+                                    "generate_backup_s",
+                                    "total_replan_s",
+                                    "visualization_s",
+                                ),
+                                module_timings,
+                            )
+                        )
+                    )
 
                 if not has_trajectory:
                     _send_msg(args.write_fd, _fallback_command(state, message or "planner has no trajectory"))
@@ -422,10 +430,22 @@ def main() -> None:
                 _send_msg(args.write_fd, _fallback_command(state, "planner has no trajectory"))
                 continue
 
-            command = planner.sample_command(time_s + dt)
-            trajectory = planner.get_trajectory()
+            command = None
+            if return_command or trajectory_debug:
+                command_started = time.perf_counter()
+                command = planner.sample_command(time_s + dt)
+                if timing_enabled:
+                    timing["command_s"] = time.perf_counter() - command_started
+            export_trajectory = trajectory_debug or known_trajectory_generation != trajectory_generation
+            trajectory = None
+            if export_trajectory:
+                export_started = time.perf_counter()
+                trajectory = planner.get_trajectory()
+                if timing_enabled:
+                    timing["trajectory_export_s"] = time.perf_counter() - export_started
             if (
                 not trajectory_debug
+                or command is None
                 or bool(command.get("trajectory_finished", False))
                 or bool(command.get("on_backup_trajectory", False))
             ):
@@ -441,8 +461,11 @@ def main() -> None:
                 {
                     "ok": True,
                     "trajectory": trajectory,
+                    "trajectory_unchanged": not export_trajectory,
+                    "trajectory_generation": trajectory_generation,
                     "trajectory_points": trajectory_points,
-                    "command": command,
+                    **({"command": command} if return_command else {}),
+                    **({"timing": timing} if timing_enabled else {}),
                 },
             )
         except Exception as exc:

@@ -116,6 +116,7 @@ class PlannerSession {
   geometry_utils::Trajectory get_last_exp_trajectory();
   geometry_utils::Trajectory get_last_backup_trajectory();
   Diagnostics get_debug_state() const;
+  std::vector<double> get_module_timings();
   ReplanDebug get_replan_debug();
   void reset(bool clear_map = false);
 
