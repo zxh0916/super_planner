@@ -302,7 +302,6 @@ def main() -> None:
             replan_dt = float(request["replan_dt"])
             target_change_min_dt = max(float(request.get("target_change_min_dt", 0.0)), 0.0)
             force_reset = bool(request.get("force_reset", False))
-            reject_cached_trajectory = bool(request.get("reject_cached_trajectory", False))
             point_cloud_required = bool(request.get("point_cloud_required", False))
             trajectory_debug = bool(request.get("trajectory_debug", True))
             return_command = bool(request.get("return_command", True))
@@ -320,7 +319,6 @@ def main() -> None:
 
             should_step = (
                 force_reset
-                or reject_cached_trajectory
                 or target_changed
                 or (periodic_replan and not has_trajectory)
                 or (periodic_replan and time_s - last_step_time >= replan_dt - 1e-9)
@@ -330,7 +328,7 @@ def main() -> None:
                 _send_msg(args.write_fd, {"ok": False, "need_point_cloud": True})
                 continue
 
-            if force_reset or reject_cached_trajectory:
+            if force_reset:
                 planner.reset(False)
                 has_goal = False
                 has_trajectory = False
