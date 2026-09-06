@@ -108,7 +108,8 @@ class PlannerSession {
   MapUpdateResult update_sensing(const std::vector<std::array<double, 4>>& points,
                                  const RobotStateInput& state,
                                  double time_s);
-  GoalResult set_goal(const Vec3f& position, double yaw = NAN);
+  GoalResult set_goal(const Vec3f& position, double yaw = NAN,
+                      const Vec3f& velocity = Vec3f::Zero());
   StepResult step(double time_s);
   PositionCommand sample_command(double time_s);
   geometry_utils::Trajectory get_position_trajectory() const;
@@ -127,6 +128,7 @@ class PlannerSession {
     bool new_goal{false};
     bool has_goal{false};
     Vec3f goal_p{0.0, 0.0, 0.0};
+    Vec3f goal_v{0.0, 0.0, 0.0};
     double goal_yaw{NAN};
   };
 

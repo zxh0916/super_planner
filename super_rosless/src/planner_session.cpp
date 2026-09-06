@@ -94,7 +94,8 @@ MapUpdateResult PlannerSession::update_sensing(const std::vector<std::array<doub
   return MapUpdateResult{true, points.size(), 0, robot_state_.rcv, latest_message_};
 }
 
-GoalResult PlannerSession::set_goal(const Vec3f& position, double yaw) {
+GoalResult PlannerSession::set_goal(const Vec3f& position, double yaw,
+                                    const Vec3f& velocity) {
   refreshRobotState();
   Vec3f click_point = position;
   if (fsm_cfg_.click_height > -5.0) {
@@ -113,6 +114,7 @@ GoalResult PlannerSession::set_goal(const Vec3f& position, double yaw) {
   }
 
   goal_.goal_p = adjusted_goal;
+  goal_.goal_v = velocity;
   goal_.goal_yaw = yaw;
   goal_.new_goal = true;
   goal_.has_goal = true;
@@ -171,7 +173,8 @@ StepResult PlannerSession::step(double time_s) {
         latest_message_ = "already close to goal";
         break;
       }
-      const auto ret = planner_ptr_->PlanFromRest(goal_.goal_p, goal_.goal_yaw, goal_.new_goal);
+      const auto ret = planner_ptr_->PlanFromRest(
+          goal_.goal_p, goal_.goal_yaw, goal_.new_goal, goal_.goal_v);
       last_ret_code_ = ret;
       result.ret_code = ret;
       if (ret == super_utils::SUCCESS || ret == super_utils::FINISH) {
@@ -209,7 +212,8 @@ StepResult PlannerSession::step(double time_s) {
           time_s - last_replan_time_ >= 1.0 / std::max(1e-6, fsm_cfg_.replan_rate)) {
         Vec3f safe_goal = goal_.goal_p;
         map_ptr_->getNearestInfCellNot(super_utils::OCCUPIED, safe_goal, safe_goal, 3.0);
-        const auto ret = planner_ptr_->ReplanOnce(safe_goal, goal_.goal_yaw, goal_.new_goal);
+        const auto ret = planner_ptr_->ReplanOnce(
+            safe_goal, goal_.goal_yaw, goal_.new_goal, goal_.goal_v);
         last_replan_time_ = time_s;
         last_ret_code_ = ret;
         result.ret_code = ret;

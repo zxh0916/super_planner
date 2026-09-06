@@ -295,6 +295,12 @@ def main() -> None:
             target = _finite_vec(request["target"], 3)
             raw_target_yaw = request.get("target_yaw", None)
             target_yaw = float(raw_target_yaw) if raw_target_yaw is not None else float("nan")
+            raw_target_velocity = request.get("target_velocity", None)
+            target_velocity = (
+                [0.0, 0.0, 0.0]
+                if raw_target_velocity is None
+                else _finite_vec(raw_target_velocity, 3)
+            )
             point_cloud = _request_point_cloud(request)
             point_cloud_id = request.get("point_cloud_id")
             time_s = float(request["time_s"])
@@ -359,7 +365,7 @@ def main() -> None:
                     or time_s - last_goal_set_time >= target_change_min_dt - 1e-9
                 )
                 if force_reset or not has_goal or (target_changed and target_update_ready):
-                    goal_result = planner.set_goal(target, target_yaw)
+                    goal_result = planner.set_goal(target, target_yaw, target_velocity)
                     goal_accepted = bool(goal_result.get("accepted", False))
                     if not goal_accepted:
                         message = str(goal_result.get("message", "goal rejected"))

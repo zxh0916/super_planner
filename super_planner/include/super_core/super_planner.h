@@ -86,6 +86,7 @@ namespace super_planner {
 
         struct GoalInfo {
             Vec3f goal_p{0, 0, 0};
+            Vec3f goal_v{Vec3f::Zero()};
             double goal_yaw{0};
             bool new_goal{true};
             bool goal_valid{true};
@@ -138,12 +139,14 @@ namespace super_planner {
         /* Tow type of replan strategy */
         RET_CODE PlanFromRest(const Vec3f &goal_p,
                               const double &goal_yaw,
-                              const bool &new_goal);
+                              const bool &new_goal,
+                              const Vec3f &goal_v = Vec3f::Zero());
 
         RET_CODE
         ReplanOnce(const Vec3f &goal_p,
                    const double &goal_yaw,
-                   const bool &new_goal);
+                   const bool &new_goal,
+                   const Vec3f &goal_v = Vec3f::Zero());
 
     private:
         RET_CODE generateExpTraj(ExpTraj &last_exp_traj_info,

@@ -68,7 +68,8 @@ namespace super_planner {
     RET_CODE
     SuperPlanner::PlanFromRest(const Vec3f &goal_p,
                                const double &goal_yaw,
-                               const bool &new_goal) {
+                               const bool &new_goal,
+                               const Vec3f &goal_v) {
         std::lock_guard<std::mutex> guard(replan_lock_);
         latest_replan.reset();
         latest_replan.setGoal(goal_p, goal_yaw, robot_state_);
@@ -78,6 +79,7 @@ namespace super_planner {
             return FAILED;
         }
         gi_.goal_p = goal_p;
+        gi_.goal_v = goal_v;
         gi_.goal_yaw = goal_yaw;
         gi_.new_goal = new_goal;
         gi_.goal_valid = true;
@@ -164,11 +166,13 @@ namespace super_planner {
     RET_CODE
     SuperPlanner::ReplanOnce(const Vec3f &goal_p,
                              const double &goal_yaw,
-                             const bool &new_goal) {
+                             const bool &new_goal,
+                             const Vec3f &goal_v) {
         TimeConsuming replan_total_t("ReplanOnce", false);
         std::lock_guard<std::mutex> guard(replan_lock_);
 
         gi_.goal_p = goal_p;
+        gi_.goal_v = goal_v;
         gi_.goal_yaw = goal_yaw;
         gi_.new_goal = new_goal;
         gi_.goal_valid = true;
@@ -726,7 +730,7 @@ namespace super_planner {
             pos_fina_state.col(1) = (gi_.goal_p - robot_state_.p).normalized() * cfg_.exp_traj_cfg.max_vel / 2;
         }
         if ((pos_fina_state.col(0) - gi_.goal_p).norm() < cfg_.resolution * 2) {
-            pos_fina_state.col(1).setZero();
+            pos_fina_state.col(1) = gi_.goal_v;
             pos_fina_state.col(0) = gi_.goal_p;
         }
 

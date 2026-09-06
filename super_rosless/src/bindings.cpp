@@ -231,11 +231,17 @@ PYBIND11_MODULE(super_planner_py, m) {
            },
            py::arg("state"), py::arg("time_s"))
       .def("set_goal",
-           [](PlannerSession& self, const py::object& position, py::object yaw) {
+           [](PlannerSession& self, const py::object& position, py::object yaw,
+              const py::object& velocity) {
              const double goal_yaw = yaw.is_none() ? NAN : py::cast<double>(yaw);
-             return goalToDict(self.set_goal(vec3FromObject(position, "position"), goal_yaw));
+             const Vec3f goal_velocity = velocity.is_none()
+                 ? Vec3f::Zero()
+                 : vec3FromObject(velocity, "velocity");
+             return goalToDict(self.set_goal(
+                 vec3FromObject(position, "position"), goal_yaw, goal_velocity));
            },
-           py::arg("position"), py::arg("yaw") = py::none())
+           py::arg("position"), py::arg("yaw") = py::none(),
+           py::arg("velocity") = py::none())
       .def("step",
            [](PlannerSession& self, double time_s) { return stepToDict(self.step(time_s)); },
            py::arg("time_s"))
